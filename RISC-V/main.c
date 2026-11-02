@@ -18,7 +18,7 @@ void uart_putc(char c) {
 // Простая функция вывода строки
 void print(const char *str) {
     while (*str) {
-        if (*str == \n')' {
+        if (*str == '\n') {
             uart_putc('\r'); // Для терминалов nographic перенос строки требует CR+LF
         }
         uart_putc(*str++);
