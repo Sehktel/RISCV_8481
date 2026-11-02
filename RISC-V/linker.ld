@@ -24,10 +24,15 @@ SECTIONS
   } > ram
 
   .bss : {
+    . = ALIGN(8);
+    _bss_start = .;
     *(.bss .bss.*)
+    *(COMMON)
+    . = ALIGN(8);
+    _bss_end = .;
   } > ram
 
-  /* Выделяем 4КБ под стек */
+  /* Выделяем 4КБ под стек с выравниванием по 16 байт */
   . = ALIGN(16);
   . += 0x1000;
   _stack_top = .;
