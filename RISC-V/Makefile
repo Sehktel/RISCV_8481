@@ -1,6 +1,9 @@
 CC = riscv64-unknown-elf-gcc
 OBJCOPY = riscv64-unknown-elf-objcopy
-CFLAGS = -Wall -Wextra -O2 -ffreestanding -nostdlib -nostartfiles -mcmodel=medany
+# GDB = riscv64-unknown-elf-gdb
+GDB = gdb-multiarch
+
+CFLAGS = -Wall -Wextra -g -O0 -ffreestanding -nostdlib -nostartfiles -mcmodel=medany
 
 all: kernel.bin
 
@@ -12,6 +15,16 @@ kernel.bin: kernel.elf
 
 run: kernel.bin
 	qemu-system-riscv64 -M virt -bios none -kernel kernel.bin -nographic
+
+# Запуск QEMU в режиме отладки:
+# -S замораживает процессор на старте (до выполнения первой инструкции)
+# -s открывает TCP-порт 1234 для подключения GDB
+debug: kernel.bin
+	qemu-system-riscv64 -M virt -bios none -kernel kernel.bin -nographic -s -S
+
+# Быстрый запуск GDB с автоматическим подключением к QEMU
+gdb: kernel.elf
+	$(GDB) -ex "target remote localhost:1234" kernel.elf
 
 clean:
 	rm -f kernel.elf kernel.bin
