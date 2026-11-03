@@ -53,3 +53,6 @@ dkms.conf
 
 # debug information files
 *.dwo
+
+# Exclude the kernel binary from the RISC-V build
+RISC-V/kernel.bin
