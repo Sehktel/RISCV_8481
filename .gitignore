@@ -56,3 +56,7 @@ dkms.conf
 
 # Exclude the kernel binary from the RISC-V build
 RISC-V/kernel.bin
+
+# Exclude some directories
+support_doc
+GDB_TEST
