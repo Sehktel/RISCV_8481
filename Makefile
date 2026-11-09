@@ -1,30 +1,33 @@
 CC = riscv64-unknown-elf-gcc
+SRC = src/
+BIN = bin/
 OBJCOPY = riscv64-unknown-elf-objcopy
 # GDB = riscv64-unknown-elf-gdb
 GDB = gdb-multiarch
 
 CFLAGS = -Wall -Wextra -g -O0 -ffreestanding -nostdlib -nostartfiles -mcmodel=medany
+KERNEL = $(BIN)kernel.bin
 
-all: kernel.bin
+all: $(KERNEL)
 
-kernel.elf: start.S main.c linker.ld
-	$(CC) $(CFLAGS) -T linker.ld start.S main.c -o kernel.elf
+kernel.elf: $(SRC)start.S $(SRC)main.c $(SRC)linker.ld
+	$(CC) $(CFLAGS) -T $(SRC)linker.ld $(SRC)start.S $(SRC)main.c -o $(BIN)kernel.elf
 
-kernel.bin: kernel.elf
-	$(OBJCOPY) -O binary kernel.elf kernel.bin
+$(KERNEL): kernel.elf
+	$(OBJCOPY) -O binary $(BIN)kernel.elf $@
 
-run: kernel.bin
-	qemu-system-riscv64 -M virt -bios none -kernel kernel.bin -nographic
+run: $(KERNEL)
+	qemu-system-riscv64 -M virt -bios none -kernel $< -nographic
 
 # Запуск QEMU в режиме отладки:
 # -S замораживает процессор на старте (до выполнения первой инструкции)
 # -s открывает TCP-порт 1234 для подключения GDB
-debug: kernel.bin
-	qemu-system-riscv64 -M virt -bios none -kernel kernel.bin -nographic -s -S
+debug: $(KERNEL)
+	qemu-system-riscv64 -M virt -bios none -kernel $< -nographic -s -S
 
 # Быстрый запуск GDB с автоматическим подключением к QEMU
 gdb: kernel.elf
-	$(GDB) -ex "target remote localhost:1234" kernel.elf
+	$(GDB) -ex "target remote localhost:1234" bin/kernel.elf
 
 clean:
-	rm -f kernel.elf kernel.bin
+	rm -f bin/kernel.elf $(KERNEL)
