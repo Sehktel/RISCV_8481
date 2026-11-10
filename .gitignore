@@ -63,3 +63,5 @@ build/
 support_doc
 GDB_TEST
 tree.txt
+
+.vscode/

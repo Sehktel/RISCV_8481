@@ -1,0 +1,93 @@
+version: '3.8'
+
+services:
+  # ─── КОМАНДНАЯ РАЗРАБОТКА & CI/CD ПАЙПЛАЙНЫ ─────────────────────────────────
+  gitea:
+    image: gitea/gitea:1.22-rootless
+    container_name: devsecops_gitea
+    environment:
+      - GITEA__SERVER__ROOT_URL=http://localhost:3000
+      - GITEA__SECURITY__INSTALL_LOCK=true
+    ports:
+      - "3000:3000"
+      - "2222:2222"
+    volumes:
+      - gitea_data:/data
+    restart: always
+    networks:
+      - os_devsecops_net
+
+  gitea-runner:
+    image: gitea/act_runner:latest
+    container_name: devsecops_runner
+    depends_on:
+      - gitea
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+      - gitea_runner_data:/data
+    environment:
+      - GITEA_INSTANCE_URL=http://gitea:3000
+      - GITEA_RUNNER_REGISTRATION_TOKEN_FILE=/data/.token
+    restart: always
+    networks:
+      - os_devsecops_net
+
+  # ─── CHATOPS: УВЕДОМЛЕНИЯ О СБОЯХ И SAST-АУДИТАХ ────────────────────────────
+  mattermost:
+    image: mattermost/mattermost-team-edition:latest
+    container_name: devsecops_chat
+    ports:
+      - "8065:8065"
+    volumes:
+      - mattermost_data:/mattermost/data
+      - mattermost_config:/mattermost/config
+    restart: always
+    networks:
+      - os_devsecops_net
+
+  # ─── ТРЕКЕР ДЕФЕКТОВ И УЯЗВИМОСТЕЙ ──────────────────────────────────────────
+  mantisbt:
+    image: vimagick/mantisbt:latest
+    container_name: devsecops_tracker
+    ports:
+      - "8080:80"
+    environment:
+      - MANTIS_DB_NAME=mantis
+      - MANTIS_DB_USER=mantis
+      - MANTIS_DB_PASSWORD=mantis_pass
+    restart: always
+    networks:
+      - os_devsecops_net
+
+  # ─── ЦЕНТРАЛИЗОВАННЫЙ ТРЕЙСИНГ И МОНИТОРИНГ СБОРКИ ──────────────────────────
+  loki:
+    image: grafana/loki:latest
+    container_name: devsecops_logs
+    ports:
+      - "3100:3100"
+    command: -config.file=/etc/loki/local-config.yaml
+    restart: always
+    networks:
+      - os_devsecops_net
+
+  grafana:
+    image: grafana/grafana:latest
+    container_name: devsecops_dashboards
+    ports:
+      - "3001:3000"
+    environment:
+      - GF_SECURITY_ADMIN_PASSWORD=admin
+    restart: always
+    networks:
+      - os_devsecops_net
+
+networks:
+  os_devsecops_net:
+    driver: bridge
+
+volumes:
+  gitea_data:
+  gitea_runner_data:
+  mattermost_data:
+  mattermost_config:
+  mattermost_data:

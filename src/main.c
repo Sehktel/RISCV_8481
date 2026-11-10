@@ -38,6 +38,7 @@ void poweroff(void) {
 
 int main(void) {
     print("Hello World!\n");
+    asm volatile("ebreak");
 
     // Автоматически тушим QEMU после завершения работы программы
     poweroff();
