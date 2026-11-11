@@ -1,12 +1,14 @@
 .PHONY: all clean clear run debug gdb docker-build docker-clear
 
-# Сборка по умолчанию: автоматически вызывает ваш CMake локально
-all:
-	@mkdir -p build
-	@if [ ! -f build/CMakeCache.txt ]; then \
-		cmake -B build -DCMAKE_TOOLCHAIN_FILE=cmake/riscv64-toolchain.cmake .; \
-	fi
-	@cmake --build build
+
+all: docker-clear docker-build run
+# # Сборка по умолчанию: автоматически вызывает ваш CMake локально
+# all:
+# 	@mkdir -p build
+# 	@if [ ! -f build/CMakeCache.txt ]; then \
+# 		cmake -B build -DCMAKE_TOOLCHAIN_FILE=cmake/riscv64-toolchain.cmake .; \
+# 	fi
+# 	@cmake --build build
 
 # Безопасная сборка ядра внутри Docker-образа с помощью вашего CMake
 docker-build:
