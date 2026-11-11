@@ -1,5 +1,11 @@
 cmake_minimum_required(VERSION 3.16)
 
+# set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} --specs=nosys.specs")
+# set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} --specs=nosys.specs")
+
+set(CMAKE_TRY_COMPILE_TARGET_TYPE "STATIC_LIBRARY")
+
+
 project(RISCV_8481 LANGUAGES C ASM)
 
 # Указываем ТОЧНЫЙ путь к вашему скрипту линкера

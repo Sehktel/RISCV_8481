@@ -65,3 +65,4 @@ GDB_TEST
 tree.txt
 
 .vscode/
+.infrastructure/kubeconfig.yaml
