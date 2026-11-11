@@ -1,0 +1,54 @@
+```bash
+#!/bin/sh
+
+# Жестко определяем корень репозитория Git, где бы мы ни находились
+REPO_ROOT=$(git rev-parse --show-toplevel)
+cd "$REPO_ROOT"
+
+
+echo "========================================================="
+echo "    DevSecOps: Запуск pre-commit проверок безопасности..."
+echo "========================================================="
+
+# 1. Автоматическое удаление пробелов на концах строк в индексированных файлах
+# Находим все измененные текстовые файлы и очищаем их с помощью sed
+STAGED_FILES=$(git diff --cached --name-only --diff-filter=d | grep -E '\.(c|h|S|s|md|yaml|yml|ld)$')
+
+if [ ! -z "$STAGED_FILES" ]; then
+    echo "Очистка trailing-пробелов в измененных файлах..."
+    for file in $STAGED_FILES; do
+        if [ -f "$file" ]; then
+            # Удаляем пробелы на конце строк
+            sed -i 's/[[:space:]]*$//' "$file"
+            # Переиндексируем файл после очистки
+            git add "$file"
+        fi
+    done
+    echo "Файлы очищены от мусорных пробелов."
+fi
+
+# 2. Запуск статического анализа Cppcheck внутри нашего Docker-контейнера
+echo "Запуск SAST-анализа кода через Cppcheck..."
+
+# Проверяем, существует ли папка src
+if [ -d "src" ]; then
+    docker run --rm \
+        --user $(id -u):$(id -g) \
+        -v $(pwd):/workspace \
+        riscv_os_devsecops:latest \
+        cppcheck --enable=warning,performance,portability \
+                 --error-exitcode=1 \
+                 --suppress=missingIncludeSystem \
+                 --inline-suppr \
+                 src/
+
+    if [ $? -ne 0 ]; then
+        echo "Критическая ошибка: Cppcheck нашел баги или уязвимости в коде!"
+        echo "Коммит заблокирован. Исправьте предупреждения выше."
+        exit 1
+    fi
+fi
+
+echo "Все проверки успешно пройдены! Коммит разрешен."
+exit 0
+```
