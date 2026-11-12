@@ -56,4 +56,4 @@ docs:
 		-v $$(pwd):/workspace \
 		riscv_os_devsecops:latest \
 		doxygen docs/Doxyfile
-	@echo "✅ Документация и Call-графы сгенерированы в папке: docs/generated/html/index.html"
+	@echo "Документация и Call-графы сгенерированы в папке: docs/generated/html/index.html"
