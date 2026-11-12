@@ -38,7 +38,9 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     qemu-system-misc \
     # Утилиты статического анализа (SAST) для следующих этапов
     cppcheck \
-    clang-tidy \
+    clang-tidy\
+    # Утилиты проверки стиля (Code Style)
+    clang-format \
     # Инструменты автогенерации документации и графов вызовов
     doxygen \
     graphviz \

@@ -57,3 +57,12 @@ docs:
 		riscv_os_devsecops:latest \
 		doxygen docs/Doxyfile
 	@echo "Документация и Call-графы сгенерированы в папке: docs/generated/html/index.html"
+
+# Автоматическое форматирование всего Си-кода внутри Docker
+format:
+	docker run --rm \
+		--user $$(id -u):$$(id -g) \
+		-v $$(pwd):/workspace \
+		riscv_os_devsecops:latest \
+		sh -c "find src/ -name '*.c' -o -name '*.h' | xargs clang-format -i"
+	@echo "Код в папке src/ успешно отформатирован по стандарту проекта."

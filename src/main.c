@@ -8,53 +8,48 @@
  * без стандартной библиотеки.
  */
 
-
 // Регистры управления питанием QEMU (SiFive Test Finisher)
 #define SYSCON_TEST_ADDR 0x100000
-#define FINISHER_PASS    0x5555
-
+#define FINISHER_PASS 0x5555
 
 // Адрес UART0 на плате QEMU virt
-#define UART0_BASE       0x10000000UL
+#define UART0_BASE 0x10000000UL
 
 /// Регистр данных UART (запись — transmit, чтение — receive)
-#define UART0_THR  ((volatile unsigned char *)(UART0_BASE + 0x00))
+#define UART0_THR ((volatile unsigned char*)(UART0_BASE + 0x00))
 /// Регистр статуса линии (бит 0 — Data Ready, бит 5 — THRE)
-#define UART0_LSR  ((volatile unsigned char *)(UART0_BASE + 0x05))
-
-
+#define UART0_LSR ((volatile unsigned char*)(UART0_BASE + 0x05))
 
 // Константы битов прерываний RISC-V
-#define MSTATUS_MIE  (1ULL << 3)  // Глобальное разрешение прерываний в Machine-mode
-#define MIE_MTIE     (1ULL << 7)  // Разрешение прерываний от машинного таймера
+#define MSTATUS_MIE (1ULL << 3) // Глобальное разрешение прерываний в Machine-mode
+#define MIE_MTIE (1ULL << 7)    // Разрешение прерываний от машинного таймера
 
 /**
  * @brief Атомарная очистка битов в CSR-регистре (csrc).
  * @param reg Имя CSR-регистра (например, mip).
  * @param bit Битовая маска очищаемых битов.
  */
- #define clear_csr(reg, bit) ({ asm volatile ("csrc " #reg ", %0" :: "r"(bit)); })
+#define clear_csr(reg, bit) ({ asm volatile("csrc " #reg ", %0" ::"r"(bit)); })
 
 /**
  * @brief Прямая запись значения в CSR-регистр.
  * @param reg Имя CSR-регистра.
  * @param val Записываемое 64-битное значение.
  */
- #define write_csr(reg, val) ({ asm volatile ("csrw " #reg ", %0" :: "r"(val)); })
+#define write_csr(reg, val) ({ asm volatile("csrw " #reg ", %0" ::"r"(val)); })
 
 /**
  * @brief Атомарная установка битов в CSR-регистре (csrs).
  * @param reg Имя CSR-регистра.
  * @param bit Битовая маска устанавливаемых битов.
  */
- #define set_csr(reg, bit)   ({ asm volatile ("csrs " #reg ", %0" :: "r"(bit)); })
+#define set_csr(reg, bit) ({ asm volatile("csrs " #reg ", %0" ::"r"(bit)); })
 
 /// Размер входного буфера командной строки в байтах (с запасом под '\0')
 #define BUFFER_SIZE 64
 
 /// Частота таймера: 10 МГц для QEMU virt, 25 МГц для реального железа
 #define TIMER_FREQ 10000000ULL
-
 
 // Добавляем стандартные заголовочные файлы для типов данных и функций
 // Готовимся писать kprintf функцию, поэтому подключаем stdarg.h для работы с переменным числом аргументов
@@ -74,32 +69,38 @@
  */
 void enable_interrupts(void) {
 
-/**
+    /**
 
-Структура основных битов регистра mip
+    Структура основных битов регистра mip
 
-Стандартные биты соответствуют типам программных, таймерных и внешних прерываний для разных уровней привилегий (Machine и Supervisor):
+    Стандартные биты соответствуют типам программных, таймерных и внешних прерываний для разных уровней привилегий
+    (Machine и Supervisor):
 
-Бит	Поле	Описание	Доступность / Запись
-1	SSIP	Supervisor Software Interrupt Pending (прерывание программного обеспечения уровня Supervisor)	Чтение / Запись (при наличии режима S)
-3	MSIP	Machine Software Interrupt Pending (прерывание программного обеспечения уровня Machine)	Чтение / Запись
-5	STIP	Supervisor Timer Interrupt Pending (таймерное прерывание уровня Supervisor)	Чтение / Запись (или управляется таймером)
-7	MTIP	Machine Timer Interrupt Pending (таймерное прерывание уровня Machine)	Обычно чтение (устанавливается таймером M-mode, например CLINT)
-9	SEIP	Supervisor External Interrupt Pending (внешнее прерывание уровня Supervisor)	Чтение / Запись или управляется PLIC/APLIC
-11	MEIP	Machine External Interrupt Pending (внешнее прерывание уровня Machine)	Обычно чтение (устанавливается контроллером прерываний)
+    Бит	Поле	Описание	Доступность / Запись
+    1	SSIP	Supervisor Software Interrupt Pending (прерывание программного обеспечения уровня Supervisor)	Чтение /
+    Запись (при наличии режима S) 3	MSIP	Machine Software Interrupt Pending (прерывание программного обеспечения
+    уровня Machine)	Чтение / Запись 5	STIP	Supervisor Timer Interrupt Pending (таймерное прерывание уровня
+    Supervisor)	Чтение / Запись (или управляется таймером) 7	MTIP	Machine Timer Interrupt Pending (таймерное
+    прерывание уровня Machine)	Обычно чтение (устанавливается таймером M-mode, например CLINT) 9	SEIP	Supervisor
+    External Interrupt Pending (внешнее прерывание уровня Supervisor)	Чтение / Запись или управляется PLIC/APLIC 11
+    MEIP	Machine External Interrupt Pending (внешнее прерывание уровня Machine)	Обычно чтение (устанавливается
+    контроллером прерываний)
 
-Примечание: В расширенных спецификациях (например, с поддержкой LCOFI или виртуализации) могут присутствовать и другие биты.
+    Примечание: В расширенных спецификациях (например, с поддержкой LCOFI или виртуализации) могут присутствовать и
+    другие биты.
 
-Как это работает на практике
+    Как это работает на практике
 
-1. Когда периферийное устройство, таймер или программный триггер вызывают прерывание, соответствующий бит в регистре mip устанавливается в 1.
-2. Чтобы прерывание реально обработалось процессором, должны совпасть три условия:
-	• Глобальное разрешение прерываний в регистре mstatus (бит MIE для M-mode).
-	• Соответствующий бит разрешения в регистре mie должен быть равен 1.
-	• Бит ожидания в регистре mip должен быть равен 1.
-Подробную спецификацию привилегированного уровня можно найти в официальной библиотеке RISC-V Privileged Architecture.
+    1. Когда периферийное устройство, таймер или программный триггер вызывают прерывание, соответствующий бит в регистре
+    mip устанавливается в 1.
+    2. Чтобы прерывание реально обработалось процессором, должны совпасть три условия:
+        • Глобальное разрешение прерываний в регистре mstatus (бит MIE для M-mode).
+        • Соответствующий бит разрешения в регистре mie должен быть равен 1.
+        • Бит ожидания в регистре mip должен быть равен 1.
+    Подробную спецификацию привилегированного уровня можно найти в официальной библиотеке RISC-V Privileged
+    Architecture.
 
-*/
+    */
 
     // 1. Принудительно гасим ВСЕ разрешения прерываний (таймер, софтверные, внешние)
     // Записываем чистый 0 в регистр mie. Теперь ни одно устройство не побеспокоит процессор.
@@ -121,9 +122,10 @@ void enable_interrupts(void) {
  * Крутится в цикле, пока бит Data Ready (LSR[0]) не станет равен 1,
  * затем возвращает символ из регистра данных.
  */
- char uart_getc(void) {
+char uart_getc(void) {
     // Ждем, пока бит 0 (Data Ready) станет равен 1
-    while ((*UART0_LSR & (1 << 0)) == 0);
+    while ((*UART0_LSR & (1 << 0)) == 0)
+        ;
     // Возвращаем считанный символ из регистра данных (он же UART0_THR на чтение)
     return (char)(*UART0_THR);
 }
@@ -137,12 +139,12 @@ void enable_interrupts(void) {
  * @note Досрочный выход происходит, когда *s1 == 0 или символы различны,
  *       поэтому корректно сравнивает строки разной длины.
  */
- int mystrcmp(const char *s1, const char *s2) {
+int mystrcmp(const char* s1, const char* s2) {
     while (*s1 && (*s1 == *s2)) {
         s1++;
         s2++;
     }
-    return *(const unsigned char *)s1 - *(const unsigned char *)s2;
+    return *(const unsigned char*)s1 - *(const unsigned char*)s2;
 }
 
 /**
@@ -150,9 +152,10 @@ void enable_interrupts(void) {
  * @param s Указатель на строку.
  * @return Количество символов в строке без учёта завершающего '\0'.
  */
- int mystrlen(const char *s) {
+int mystrlen(const char* s) {
     int len = 0;
-    while (s[len]) len++;
+    while (s[len])
+        len++;
     return len;
 }
 
@@ -164,7 +167,8 @@ void enable_interrupts(void) {
  * должен быть равен 1.
  */
 void uart_putc(char c) {
-    while ((*UART0_LSR & (1 << 5)) == 0); // Ожидание свободного буфера передачи
+    while ((*UART0_LSR & (1 << 5)) == 0)
+        ; // Ожидание свободного буфера передачи
     *UART0_THR = c;
 }
 
@@ -175,7 +179,7 @@ void uart_putc(char c) {
  * Символ '\n' автоматически заменяется парой CR+LF ('\r' + '\n'),
  * как требует терминал QEMU в режиме nographic.
  */
- void print(const char *str) {
+void print(const char* str) {
     while (*str) {
         if (*str == '\n') {
             uart_putc('\r'); // Для терминалов nographic перенос строки требует CR+LF
@@ -193,8 +197,8 @@ void uart_putc(char c) {
  * @note На реальном железе этот адрес ничего не отключит: предусмотрена
  *       страховка — бесконечный цикл с инструкцией wfi (wait for interrupt).
  */
- void poweroff(void) {
-    volatile unsigned int *test_finisher = (volatile unsigned int *)SYSCON_TEST_ADDR;
+void poweroff(void) {
+    volatile unsigned int* test_finisher = (volatile unsigned int*)SYSCON_TEST_ADDR;
     *test_finisher = FINISHER_PASS;
 
     // Предохранитель, если QEMU не отреагировал
@@ -212,7 +216,7 @@ void uart_putc(char c) {
  * затем выводятся в прямом порядке. Отрицательные числа не поддерживаются —
  * используйте kprintf("%d").
  */
- void print_number(uint64_t num, int base) {
+void print_number(uint64_t num, int base) {
     const char digits[] = "0123456789abcdef";
     char buf[32]; // Буфер для обратного формирования цифр
     int i = 0;
@@ -235,7 +239,6 @@ void uart_putc(char c) {
     }
 }
 
-
 /**
  * @brief Форматированный вывод в UART (bare-metal аналог printf).
  * @param fmt Строка формата.
@@ -252,7 +255,7 @@ void uart_putc(char c) {
  * Неизвестные спецификаторы выводятся как есть ("%z" → "%z").
  * @warning Модификаторы ширины и точности (%5d, %.2f) не поддерживаются.
  */
- void kprintf(const char *fmt, ...) {
+void kprintf(const char* fmt, ...) {
     va_list args;
     va_start(args, fmt); // Инициализируем чтение аргументов после строки fmt
 
@@ -271,41 +274,41 @@ void uart_putc(char c) {
         if (*fmt == '\0') break; // Защита от обрыва строки на символе '%'
 
         switch (*fmt) {
-            case 'c': { // Одиночный символ
-                char c = (char)va_arg(args, int);
-                uart_putc(c);
-                break;
+        case 'c': { // Одиночный символ
+            char c = (char)va_arg(args, int);
+            uart_putc(c);
+            break;
+        }
+        case 's': { // Строка
+            const char* s = va_arg(args, const char*);
+            if (!s) s = "(null)";
+            print(s);
+            break;
+        }
+        case 'd': { // Знаковое целое число (десятичное)
+            int val = va_arg(args, int);
+            if (val < 0) {
+                uart_putc('-');
+                print_number((uint64_t)(-val), 10);
+            } else {
+                print_number((uint64_t)val, 10);
             }
-            case 's': { // Строка
-                const char *s = va_arg(args, const char *);
-                if (!s) s = "(null)";
-                print(s);
-                break;
-            }
-            case 'd': { // Знаковое целое число (десятичное)
-                int val = va_arg(args, int);
-                if (val < 0) {
-                    uart_putc('-');
-                    print_number((uint64_t)(-val), 10);
-                } else {
-                    print_number((uint64_t)val, 10);
-                }
-                break;
-            }
-            case 'x': { // Беззнаковое шестнадцатеричное число (удобно для адресов памяти)
-                uint64_t val = va_arg(args, uint64_t);
-                print_number(val, 16);
-                break;
-            }
-            case '%': { // Экранированный знак процента '%%'
-                uart_putc('%');
-                break;
-            }
-            default: { // Неизвестный спецификатор печатаем как есть
-                uart_putc('%');
-                uart_putc(*fmt);
-                break;
-            }
+            break;
+        }
+        case 'x': { // Беззнаковое шестнадцатеричное число (удобно для адресов памяти)
+            uint64_t val = va_arg(args, uint64_t);
+            print_number(val, 16);
+            break;
+        }
+        case '%': { // Экранированный знак процента '%%'
+            uart_putc('%');
+            break;
+        }
+        default: { // Неизвестный спецификатор печатаем как есть
+            uart_putc('%');
+            uart_putc(*fmt);
+            break;
+        }
         }
         fmt++;
     }
@@ -321,7 +324,7 @@ void uart_putc(char c) {
  * Инструкция rdtime атомарно читает CSR time, так что разрыв
  * между старшим и младшим словом невозможен.
  */
- uint64_t get_ticks(void) {
+uint64_t get_ticks(void) {
     uint64_t ticks;
     asm volatile("rdtime %0" : "=r"(ticks));
     return ticks;
@@ -335,13 +338,13 @@ void uart_putc(char c) {
  * В конце печатается счётчик тиков (при больших аптаймах приводит
  * к переполнению при касте к int — чисто косметика для отладки).
  */
- void print_uptime(void) {
+void print_uptime(void) {
     uint64_t ticks = get_ticks();
 
     // Переводим тики в миллисекунды
     uint64_t total_ms = ticks / (TIMER_FREQ / 1000);
 
-    uint64_t ms      = total_ms % 1000;
+    uint64_t ms = total_ms % 1000;
     uint64_t seconds = (total_ms / 1000) % 60;
     uint64_t minutes = (total_ms / 60000);
 
@@ -353,10 +356,9 @@ void uart_putc(char c) {
     kprintf("%d.", (int)seconds);
 
     if (ms < 100) uart_putc('0');
-    if (ms < 10)  uart_putc('0');
+    if (ms < 10) uart_putc('0');
     kprintf("%d (Ticks: %d)\n", (int)ms, (int)ticks);
 }
-
 
 /**
  * @brief Разбирает и выполняет команду, введённую пользователем.
@@ -373,7 +375,7 @@ void uart_putc(char c) {
  *
  * Пустая строка молча игнорируется; неизвестная команда печатает ошибку.
  */
-void execute_command(const char *cmd) {
+void execute_command(const char* cmd) {
 
     // Намеренная ошибка для проверки статического анализатора Cppcheck:
     // Создаем массив на 5 элементов, а пишем в 10-й элемент (выход за границы буфера)
@@ -387,8 +389,7 @@ void execute_command(const char *cmd) {
         kprintf("  clear        - Очистить экран терминала\n");
         kprintf("  time, uptime - Показать время работы системы\n");
         kprintf("  exit, quit   - Завершение работы программы\n");
-    }
-    else if (mystrcmp(cmd, "info") == 0) {
+    } else if (mystrcmp(cmd, "info") == 0) {
         uint64_t sp_val;
         // Читаем текущий указатель стека sp напрямую из регистра процессора
         asm volatile("mv %0, sp" : "=r"(sp_val));
@@ -397,23 +398,17 @@ void execute_command(const char *cmd) {
         kprintf("Архитектура: RV%dGC (64-bit)\n", 64);
         kprintf("Базовый адрес UART0: 0x%x\n", (uint64_t)UART0_BASE);
         kprintf("Текущий указатель стека (SP): 0x%x\n", sp_val);
-    }
-    else if (mystrcmp(cmd, "clear") == 0) {
+    } else if (mystrcmp(cmd, "clear") == 0) {
         kprintf("\033[H\033[2J");
-    }
-    else if (mystrcmp(cmd, "exit") == 0 || mystrcmp(cmd, "quit") == 0) {
+    } else if (mystrcmp(cmd, "exit") == 0 || mystrcmp(cmd, "quit") == 0) {
         kprintf("Завершение работы системы...\n");
         poweroff();
-    }
-    else if (mystrcmp(cmd, "uptime") == 0 || mystrcmp(cmd, "time") == 0) {
+    } else if (mystrcmp(cmd, "uptime") == 0 || mystrcmp(cmd, "time") == 0) {
         print_uptime();
-    }
-    else if (mystrlen(cmd) > 0) {
+    } else if (mystrlen(cmd) > 0) {
         kprintf("Ошибка: неизвестная команда '%s'. Введите 'help'\n", cmd);
     }
 }
-
-
 
 /**
  * @brief Точка входа в ядро ОС.
@@ -435,10 +430,10 @@ void execute_command(const char *cmd) {
 void kmain(void) {
 
     // Включаем архитектурные прерывания процессора
-   enable_interrupts();
+    enable_interrupts();
 
     // Выводим приветствие
-//    print("Hello World!\n");
+    //    print("Hello World!\n");
 
     print("\n--- RISCV Микроядро: Shell загружен ---\n");
     print("sh> ");
@@ -458,14 +453,14 @@ void kmain(void) {
 
             execute_command(buffer);
 
-            index = 0;            // Сбрасываем индекс для новой команды
+            index = 0; // Сбрасываем индекс для новой команды
             print("sh> ");
         }
         // Обработка клавиши Backspace (ASCII 8 или 127)
         else if (c == 8 || c == 127) {
             if (index > 0) {
                 index--;
-                print("\b \b");   // Сдвигаем курсор назад, стираем пробелом, возвращаем курсор
+                print("\b \b"); // Сдвигаем курсор назад, стираем пробелом, возвращаем курсор
             }
         }
         // Обычные печатаемые символы
@@ -473,11 +468,10 @@ void kmain(void) {
             // Ограничиваем ввод размером буфера (оставляем 1 байт под '\0')
             if (index < BUFFER_SIZE - 1) {
                 buffer[index++] = c;
-                uart_putc(c);     // Эхо-вывод: отображаем символ пользователю при вводе
+                uart_putc(c); // Эхо-вывод: отображаем символ пользователю при вводе
             }
         }
     }
-
 
     poweroff(); // Недостижимо, и это правильно.
 }
