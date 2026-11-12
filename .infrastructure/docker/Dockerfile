@@ -39,6 +39,9 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     # Утилиты статического анализа (SAST) для следующих этапов
     cppcheck \
     clang-tidy \
+    # Инструменты автогенерации документации и графов вызовов
+    doxygen \
+    graphviz \
     # Очистка кэша apt для уменьшения размера Docker-образа
     && apt-get clean && rm -rf /var/lib/apt/lists/*
 

@@ -1,0 +1,38 @@
+# Основные настройки проекта
+PROJECT_NAME           = "RISCV_8481 Microkernel"
+PROJECT_BRIEF          = "Bare-metal RISC-V OS Kernel & DevSecOps"
+OUTPUT_DIRECTORY       = docs/generated
+OUTPUT_LANGUAGE        = Russian
+
+# Встраивать полный текст всех исходников в документацию
+SOURCE_BROWSER         = YES
+INLINE_SOURCES         = YES
+STRIP_CODE_COMMENTS    = NO
+
+
+# Какие файлы сканировать
+INPUT                  = src
+FILE_PATTERNS          = *.c *.h *.S
+RECURSIVE              = YES
+
+# Говорим парсеру воспринимать ассемблер как обычный текстовый файл без разбора AST
+EXTENSION_MAPPING      = S=C s=C
+
+# Оптимизация парсера строго под язык Си
+OPTIMIZE_OUTPUT_FOR_C  = YES
+EXTRACT_ALL            = YES
+EXTRACT_STATIC         = YES
+
+# Генерация графов вызовов (Call Graphs) через Graphviz
+HAVE_DOT               = YES
+CALL_GRAPH             = YES
+CALLER_GRAPH           = YES
+DOT_IMAGE_FORMAT       = svg
+INTERACTIVE_SVG        = YES
+DOT_GRAPH_MAX_NODES    = 100
+
+# Отключаем лишний LaTeX, оставляем только легкий и красивый HTML
+GENERATE_HTML          = YES
+GENERATE_LATEX         = NO
+
+# Тем, кто любопытен -- настоятельно рекомендуется посмотреть на LaTeX генерацию.

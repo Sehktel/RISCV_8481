@@ -1,5 +1,4 @@
-.PHONY: all clean clear run debug gdb docker-build docker-clear
-
+.PHONY: all clean clear run debug gdb docker-build docker-clear docs
 
 all: docker-clear docker-build run
 # # Сборка по умолчанию: автоматически вызывает ваш CMake локально
@@ -48,3 +47,13 @@ docker-clear:
 		-v $$(pwd):/workspace \
 		riscv_os_devsecops:latest \
 		rm -rf build bin/*
+
+# Генерация HTML-документации и интерактивных графов вызовов внутри Docker
+docs:
+	@mkdir -p docs/generated
+	docker run --rm \
+		--user $$(id -u):$$(id -g) \
+		-v $$(pwd):/workspace \
+		riscv_os_devsecops:latest \
+		doxygen docs/Doxyfile
+	@echo "✅ Документация и Call-графы сгенерированы в папке: docs/generated/html/index.html"
