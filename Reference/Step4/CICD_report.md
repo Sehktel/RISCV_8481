@@ -33,7 +33,7 @@ docker run --rm \
 [100%] Built target kernel.elf
 qemu-system-riscv64 -M virt -bios none -kernel bin/kernel.bin -nographic
 
---- RISCV_8481 Микроядро: Shell загружен ---
+--- RISCV Микроядро: Shell загружен ---
 sh> exit
 Завершение работы программы...
 ```

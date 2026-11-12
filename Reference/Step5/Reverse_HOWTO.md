@@ -111,7 +111,7 @@ void execute_command(const char *cmd) {
         // Читаем текущий указатель стека sp напрямую из регистра процессора
         asm volatile("mv %0, sp" : "=r"(sp_val));
 
-        kprintf("--- Диагностика ядра %s ---\n", "RISCV_8481");
+        kprintf("--- Диагностика ядра %s ---\n", "RISCV");
         kprintf("Архитектура: RV%dGC (64-bit)\n", 64);
         kprintf("Базовый адрес UART0: 0x%x\n", (uint64_t)UART0_BASE);
         kprintf("Текущий указатель стека (SP): 0x%x\n", sp_val);

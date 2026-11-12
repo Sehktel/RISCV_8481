@@ -41,7 +41,7 @@ void execute_command(const char *cmd) {
 ```
 
 ```c
-    print("\n--- RISCV_8481 Микроядро: Shell загружен ---\n");
+    print("\n--- RISCV Микроядро: Shell загружен ---\n");
     print("sh> ");
 
     char buffer[BUFFER_SIZE];

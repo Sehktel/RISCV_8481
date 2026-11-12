@@ -1,5 +1,5 @@
 # Основные настройки проекта
-PROJECT_NAME           = "RISCV_8481 Microkernel"
+PROJECT_NAME           = "RISCV Microkernel"
 PROJECT_BRIEF          = "Bare-metal RISC-V OS Kernel & DevSecOps"
 OUTPUT_DIRECTORY       = docs/generated
 OUTPUT_LANGUAGE        = Russian

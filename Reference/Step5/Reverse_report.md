@@ -29,7 +29,7 @@ docker run --rm \
 [100%] Built target kernel.elf
 qemu-system-riscv64 -M virt -bios none -kernel bin/kernel.bin -nographic
 
---- RISCV_8481 Микроядро: Shell загружен ---
+--- RISCV Микроядро: Shell загружен ---
 sh> gelp
 Ошибка: неизвестная команда 'рудз'. Введите 'help'
 sh> help
@@ -39,7 +39,7 @@ sh> help
   clear - Очистить экран терминала
   exit  - Завершение работы программы
 sh> info
---- Диагностика ядра RISCV_8481 ---
+--- Диагностика ядра RISCV ---
 Архитектура: RV64GC (64-bit)
 Базовый адрес UART0: 0x10000000
 Текущий указатель стека (SP): 0x80001910

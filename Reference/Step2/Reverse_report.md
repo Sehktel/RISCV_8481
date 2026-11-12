@@ -2,9 +2,9 @@
 
 ```bash
 $ make debug
-gmake[1]: Entering directory '/home/sukhov/Work/RISCV_8481/build'
+gmake[1]: Entering directory '/home/sukhov/Work/RISCV/build'
 [100%] Built target kernel.elf
-gmake[1]: Leaving directory '/home/sukhov/Work/RISCV_8481/build'
+gmake[1]: Leaving directory '/home/sukhov/Work/RISCV/build'
 =========================================================
 QEMU запущен в режиме отладки и ожидает GDB на порту 1234
 Для подключения откройте новый терминал и выполните: make gdb
@@ -53,7 +53,7 @@ A debugging session is active.
         Inferior 1 [process 1] will be detached.
 
 Quit anyway? (y or n) y
-Detaching from program: /home/sukhov/Work/RISCV_8481/bin/kernel.elf, process 1
+Detaching from program: /home/sukhov/Work/RISCV/bin/kernel.elf, process 1
 Ending remote debugging.
 [Inferior 1 (process 1) detached]
 

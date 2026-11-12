@@ -6,7 +6,7 @@ cmake_minimum_required(VERSION 3.16)
 set(CMAKE_TRY_COMPILE_TARGET_TYPE "STATIC_LIBRARY")
 
 
-project(RISCV_8481 LANGUAGES C ASM)
+project(RISCV LANGUAGES C ASM)
 
 # Указываем ТОЧНЫЙ путь к вашему скрипту линкера
 set(LINKER_SCRIPT "${CMAKE_CURRENT_SOURCE_DIR}/src/linker.ld")

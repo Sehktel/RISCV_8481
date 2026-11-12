@@ -3,7 +3,7 @@
 ```cmake
 cmake_minimum_required(VERSION 3.16)
 
-project(RISCV_8481 LANGUAGES C ASM)
+project(RISCV LANGUAGES C ASM)
 
 # Указываем ТОЧНЫЙ путь к вашему скрипту линкера
 set(LINKER_SCRIPT "${CMAKE_CURRENT_SOURCE_DIR}/src/linker.ld")
