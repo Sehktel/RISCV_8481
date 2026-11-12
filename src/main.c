@@ -405,7 +405,7 @@ void execute_command(const char *cmd) {
         kprintf("Завершение работы системы...\n");
         poweroff();
     }
-    else if (mystrcmp(cmd, "uptime") || mystrcmp(cmd, "time") == 0) {
+    else if (mystrcmp(cmd, "uptime") == 0 || mystrcmp(cmd, "time") == 0) {
         print_uptime();
     }
     else if (mystrlen(cmd) > 0) {
