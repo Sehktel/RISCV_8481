@@ -7,10 +7,6 @@
 #define UART0_THR        ((volatile unsigned char*)(UART0_BASE + 0x00)) // Транспортный регистр (запись)
 #define UART0_LSR        ((volatile unsigned char*)(UART0_BASE + 0x05)) // Статус линии
 
-// Добавляем макросы для записи в CSR регистры
-#define write_csr(reg, val) ({ asm volatile ("csrw " #reg ", %0" :: "r"(val)); })
-#define set_csr(reg, bit)   ({ asm volatile ("csrs " #reg ", %0" :: "r"(bit)); })
-
 // Константы битов прерываний RISC-V
 #define MSTATUS_MIE  (1ULL << 3)  // Глобальное разрешение прерываний в Machine-mode
 #define MIE_MTIE     (1ULL << 7)  // Разрешение прерываний от машинного таймера
@@ -43,12 +39,6 @@ void enable_interrupts(void) {
     // 3. Теперь, когда периферия гарантированно молчит, безопасно включаем
     // архитектурную готовность ядра обрабатывать прерывания глобально.
     set_csr(mstatus, MSTATUS_MIE);
-
-    // // 1. Разрешаем прерывания конкретно от таймера (Machine Timer Interrupt)
-    // set_csr(mie, MIE_MTIE);
-
-    // // 2. Включаем прерывания глобально
-    // set_csr(mstatus, MSTATUS_MIE);
 }
 
 // Функция чтения одного символа (Busy-wait опрос регистра LSR)
