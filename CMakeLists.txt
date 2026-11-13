@@ -5,6 +5,8 @@ cmake_minimum_required(VERSION 3.16)
 
 set(CMAKE_TRY_COMPILE_TARGET_TYPE "STATIC_LIBRARY")
 
+set(CMAKE_TOOLCHAIN_FILE "${CMAKE_CURRENT_SOURCE_DIR}/cmake/riscv64-toolchain.cmake" CACHE FILEPATH "")
+
 
 project(RISCV LANGUAGES C ASM)
 
