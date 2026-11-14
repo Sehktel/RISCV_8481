@@ -250,23 +250,22 @@ void kfree(void* ptr) {
 
         block->size += sizeof(block_header_t) + victim_size;
         block->next = victim_next;
+    }
+    // 5. Локальная коалесценция НАЗАД (поиск предыдущего блока)
+    block_header_t* blk_next = block->next; // сохраняем next до затирания
+    block_header_t* prev = heap_head;
+    while (prev != NULL && prev->next != block) {
+        prev = prev->next;
+    }
+    if (prev != NULL && prev->is_free && prev->magic == HEAP_MAGIC_FREE) { //
+        prev->size += sizeof(block_header_t) + block->size;
 
-        // 5. Локальная коалесценция НАЗАД (поиск предыдущего блока)
-        block_header_t* blk_next = block->next; // сохраняем next до затирания
-        block_header_t* prev = heap_head;
-        while (prev != NULL && prev->next != block) {
-            prev = prev->next;
-        }
-        if (prev != NULL && prev->is_free && prev->magic == HEAP_MAGIC_FREE) { //
-            prev->size += sizeof(block_header_t) + block->size;
+        // Заголовок тоже становится payload — ядовит
+        uint8_t* raw = (uint8_t*)block;
+        for (size_t i = 0; i < sizeof(block_header_t); i++)
+            raw[i] = HEAP_POISON_BYTE;
 
-            // Заголовок тоже становится payload — ядовит
-            uint8_t* raw = (uint8_t*)block;
-            for (size_t i = 0; i < sizeof(block_header_t); i++)
-                raw[i] = HEAP_POISON_BYTE;
-
-            prev->next = blk_next;
-        }
+        prev->next = blk_next;
     }
 }
 
