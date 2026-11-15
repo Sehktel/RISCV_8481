@@ -36,6 +36,34 @@
 #           cmake -B build -DCMAKE_TOOLCHAIN_FILE=cmake/riscv64-toolchain.cmake .
 #           cmake --build build
 #           ls -lh bin/kernel.elf bin/kernel.bin
+# name: RISC-V Microkernel CI (Stage 7)
+
+# on:
+#   push:
+#     branches: [ main, master ]
+#   pull_request:
+#     branches: [ main, master ]
+
+# jobs:
+#   build-and-sast:
+#     runs-on: ubuntu-latest
+#     container:
+#       image: riscv_os_devsecops:latest
+
+#     steps:
+#       - name: Checkout repository
+#         uses: actions/checkout@v4
+
+#       - name: Code Style Gate (clang-format)
+#         run: make style
+
+#       - name: First-Line SAST & Memory Leak Audit (Cppcheck)
+#         run: make sast
+
+#       - name: Cross-Compile Kernel (RV64GC)
+#         run: |
+#           make build
+#           ls -lh bin/kernel.elf bin/kernel.bin
 name: RISC-V Microkernel CI (Stage 7)
 
 on:
@@ -52,7 +80,9 @@ jobs:
 
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v4
+        run: |
+          git config --global --add safe.directory "$(pwd)"
+          git clone --depth 1 --branch "${GITHUB_REF_NAME}" "http://oauth2:${GITHUB_TOKEN}@forgejo:3000/${GITHUB_REPOSITORY}.git" .
 
       - name: Code Style Gate (clang-format)
         run: make style

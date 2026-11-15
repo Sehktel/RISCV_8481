@@ -92,9 +92,14 @@ void heap_dump(void) {
  */
 void heap_test(void) {
     kprintf("=== 1. Тест выделения и коалесценции ===\n");
-    void* p1 = kmalloc(64);
-    void* p2 = kmalloc(128);
-    void* p3 = kmalloc(256);
+    uint8_t* p1 = (uint8_t*)kmalloc(64);
+    uint8_t* p2 = (uint8_t*)kmalloc(128);
+    uint8_t* p3 = (uint8_t*)kmalloc(256);
+
+    if (p1) p1[0] = 0x11;
+    if (p2) p2[0] = 0x22;
+    if (p3) p3[0] = 0x33;
+
     heap_dump();
 
     kprintf("\n--- Освобождаем средний блок (p2) ---\n");
@@ -111,6 +116,7 @@ void heap_test(void) {
 
     kprintf("\n=== 2. Тест безопасности (Security Checks) ===\n");
     kprintf("Попытка Double-Free на p3:\n");
+    // cppcheck-suppress doubleFree
     kfree(p3);
 
     kprintf("Попытка освободить невыровненный указатель:\n");
@@ -119,6 +125,35 @@ void heap_test(void) {
     kprintf("Попытка освободить указатель вне кучи (например, из стека/кода):\n");
     kfree((void*)0x80000010);
 }
+// void heap_test(void) {
+//     kprintf("=== 1. Тест выделения и коалесценции ===\n");
+//     void* p1 = kmalloc(64);
+//     void* p2 = kmalloc(128);
+//     void* p3 = kmalloc(256);
+//     heap_dump();
+
+//     kprintf("\n--- Освобождаем средний блок (p2) ---\n");
+//     kfree(p2);
+//     heap_dump();
+
+//     kprintf("\n--- Освобождаем p1 (слияние вперёд с p2) ---\n");
+//     kfree(p1);
+//     heap_dump();
+
+//     kprintf("\n--- Освобождаем p3 (слияние назад, куча должна стать единой) ---\n");
+//     kfree(p3);
+//     heap_dump();
+
+//     kprintf("\n=== 2. Тест безопасности (Security Checks) ===\n");
+//     kprintf("Попытка Double-Free на p3:\n");
+//     kfree(p3);
+
+//     kprintf("Попытка освободить невыровненный указатель:\n");
+//     kfree((void*)0x80005003);
+
+//     kprintf("Попытка освободить указатель вне кучи (например, из стека/кода):\n");
+//     kfree((void*)0x80000010);
+// }
 
 /**
  * @brief Выделяет блок памяти размером @p size байт (first-fit поиск).
