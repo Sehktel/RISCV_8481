@@ -49,7 +49,6 @@ jobs:
             --upload-file bin/kernel.bin \
             "${PKG_API}/${GITHUB_SHA}/kernel.bin" \
             && echo "Артефакт: Packages -> kernel -> version ${GITHUB_SHA}"
-
       - name: Cleanup old package versions (keep last 10)
         env:
           PACKAGE_TOKEN: ${{ secrets.PACKAGE_TOKEN }}
@@ -57,13 +56,12 @@ jobs:
           OWNER="${GITHUB_REPOSITORY_OWNER:-${GITHUB_REPOSITORY%%/*}}"
           KEEP=10
 
-          # Список версий пакета через REST API (в порядке от новых к старым)
+          # Список версий пакета через REST API
           curl -sS -u "oauth2:${PACKAGE_TOKEN}" \
             "http://forgejo:3000/api/v1/packages/${OWNER}/generic/kernel?limit=50" \
             -o /tmp/versions.json
 
-          VERSIONS=$(grep -oE '"version" *: *"[^"]*"' /tmp/versions.json \
-                     | sed 's/.*"$.*$"$/\1/')
+          VERSIONS=$(grep -oE '"version" *: *"[^"]*"' /tmp/versions.json | cut -d'"' -f4)
 
           i=0
           for v in $VERSIONS; do
@@ -75,6 +73,32 @@ jobs:
               -X DELETE \
               "http://forgejo:3000/api/packages/${OWNER}/generic/kernel/${v}"
           done
+
+      # - name: Cleanup old package versions (keep last 10)
+      #   env:
+      #     PACKAGE_TOKEN: ${{ secrets.PACKAGE_TOKEN }}
+      #   run: |
+      #     OWNER="${GITHUB_REPOSITORY_OWNER:-${GITHUB_REPOSITORY%%/*}}"
+      #     KEEP=10
+
+      #     # Список версий пакета через REST API (в порядке от новых к старым)
+      #     curl -sS -u "oauth2:${PACKAGE_TOKEN}" \
+      #       "http://forgejo:3000/api/v1/packages/${OWNER}/generic/kernel?limit=50" \
+      #       -o /tmp/versions.json
+
+      #     VERSIONS=$(grep -oE '"version" *: *"[^"]*"' /tmp/versions.json \
+      #                | sed 's/.*"$.*$"$/\1/')
+
+      #     i=0
+      #     for v in $VERSIONS; do
+      #       i=$((i+1))
+      #       [ "$i" -le "$KEEP" ] && continue
+      #       echo "Удаляю старую версию: $v"
+      #       curl -sS -o /dev/null -w "  DELETE ${v}: %{http_code}\n" \
+      #         -u "oauth2:${PACKAGE_TOKEN}" \
+      #         -X DELETE \
+      #         "http://forgejo:3000/api/packages/${OWNER}/generic/kernel/${v}"
+      #     done
 
       # - name: Publish kernel artifact
       #   env:
