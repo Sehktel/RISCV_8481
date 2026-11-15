@@ -1,68 +1,134 @@
-.PHONY: all clean clear run debug gdb docker-build docker-clear docs
+# .PHONY: all clean clear run debug gdb docker-build docker-clear docs
+
+# all: docker-clear docker-build run
+# # # Сборка по умолчанию: автоматически вызывает ваш CMake локально
+# # all:
+# # 	@mkdir -p build
+# # 	@if [ ! -f build/CMakeCache.txt ]; then \
+# # 		cmake -B build -DCMAKE_TOOLCHAIN_FILE=cmake/riscv64-toolchain.cmake .; \
+# # 	fi
+# # 	@cmake --build build
+
+# # Безопасная сборка ядра внутри Docker-образа с помощью вашего CMake
+# docker-build:
+# 	@mkdir -p build bin
+# 	docker run --rm \
+# 		--user $$(id -u):$$(id -g) \
+# 		-v $$(pwd):/workspace \
+# 		riscv_os_devsecops:latest \
+# 		sh -c "cmake -B build -DCMAKE_TOOLCHAIN_FILE=cmake/riscv64-toolchain.cmake . && cmake --build build"
+
+# # Запуск скомпилированного ядра в QEMU
+# run:
+# 	qemu-system-riscv64 -M virt -bios none -kernel bin/kernel.bin -nographic
+
+# # Запуск QEMU в режиме отладки (замораживает процессор и ждет GDB на порту 1234)
+# debug:
+# 	@echo "========================================================="
+# 	@echo "QEMU ожидает GDB на порту 1234. Откройте новый терминал и выполните: make gdb"
+# 	@echo "========================================================="
+# 	qemu-system-riscv64 -M virt -bios none -kernel bin/kernel.bin -nographic -s -S
+
+# # Подключение отладчика gdb-multiarch к QEMU
+# gdb:
+# 	gdb-multiarch -ex "target remote localhost:1234" bin/kernel.elf
+
+# # Очистка локального кэша CMake и папки сборки
+# clean:
+# 	rm -rf build
+# 	rm -f bin/kernel.elf bin/kernel.bin
+
+# clear: clean
+
+# # Очистка кэша сборки внутри Docker-контейнера
+# docker-clear:
+# 	docker run --rm \
+# 		--user $$(id -u):$$(id -g) \
+# 		-v $$(pwd):/workspace \
+# 		riscv_os_devsecops:latest \
+# 		rm -rf build bin/*
+
+# # Генерация HTML-документации и интерактивных графов вызовов внутри Docker
+# docs:
+# 	@mkdir -p docs/generated
+# 	docker run --rm \
+# 		--user $$(id -u):$$(id -g) \
+# 		-v $$(pwd):/workspace \
+# 		riscv_os_devsecops:latest \
+# 		doxygen docs/Doxyfile
+# 	@echo "Документация и Call-графы сгенерированы в папке: docs/generated/html/index.html"
+
+# # Автоматическое форматирование всего Си-кода внутри Docker
+# format:
+# 	docker run --rm \
+# 		--user $$(id -u):$$(id -g) \
+# 		-v $$(pwd):/workspace \
+# 		riscv_os_devsecops:latest \
+# 		sh -c "find src/ -name '*.c' -o -name '*.h' | xargs clang-format -i"
+# 	@echo "Код в папке src/ успешно отформатирован по стандарту проекта."
+.PHONY: all build style sast clean clear run debug gdb docs format docker-build docker-clear
 
 all: docker-clear docker-build run
-# # Сборка по умолчанию: автоматически вызывает ваш CMake локально
-# all:
-# 	@mkdir -p build
-# 	@if [ ! -f build/CMakeCache.txt ]; then \
-# 		cmake -B build -DCMAKE_TOOLCHAIN_FILE=cmake/riscv64-toolchain.cmake .; \
-# 	fi
-# 	@cmake --build build
 
-# Безопасная сборка ядра внутри Docker-образа с помощью вашего CMake
-docker-build:
+# ==============================================================================
+# 1. ЕДИНЫЕ АТОМАРНЫЕ ЦЕЛИ (выполняются внутри контейнера riscv_os_devsecops)
+# ==============================================================================
+
+build:
 	@mkdir -p build bin
-	docker run --rm \
-		--user $$(id -u):$$(id -g) \
-		-v $$(pwd):/workspace \
-		riscv_os_devsecops:latest \
-		sh -c "cmake -B build -DCMAKE_TOOLCHAIN_FILE=cmake/riscv64-toolchain.cmake . && cmake --build build"
+	cmake -B build -DCMAKE_TOOLCHAIN_FILE=cmake/riscv64-toolchain.cmake .
+	cmake --build build
 
-# Запуск скомпилированного ядра в QEMU
+style:
+	find src/ -name '*.c' -o -name '*.h' | xargs clang-format --dry-run --Werror
+
+sast:
+	cppcheck --enable=warning,style,performance,portability \
+	         --platform=unix64 \
+	         --library=.infrastructure/cppcheck/kernel.cfg \
+	         --error-exitcode=1 \
+	         --suppress=missingIncludeSystem \
+	         --suppress=unusedFunction \
+	         --inline-suppr \
+	         src/
+
+format:
+	find src/ -name '*.c' -o -name '*.h' | xargs clang-format -i
+
+clean:
+	rm -rf build bin/*
+
+clear: clean
+
+# ==============================================================================
+# 2. DOCKER-ПРОКСИ ДЛЯ ХОСТ-МАШИНЫ РАЗРАБОТЧИКА
+# ==============================================================================
+
+DOCKER_RUN = docker run --rm --user $$(id -u):$$(id -g) -v $$(pwd):/workspace riscv_os_devsecops:latest
+
+docker-build:
+	$(DOCKER_RUN) make build
+
+docker-clear:
+	$(DOCKER_RUN) make clean
+
+docs:
+	@mkdir -p docs/generated
+	$(DOCKER_RUN) doxygen docs/Doxyfile
+	@echo "Документация и Call-графы сгенерированы в папке: docs/generated/html/index.html"
+
+# ==============================================================================
+# 3. ЭМУЛЯЦИЯ И ОТЛАДКА НА ХОСТЕ (QEMU / GDB)
+# ==============================================================================
+
 run:
 	qemu-system-riscv64 -M virt -bios none -kernel bin/kernel.bin -nographic
 
-# Запуск QEMU в режиме отладки (замораживает процессор и ждет GDB на порту 1234)
 debug:
 	@echo "========================================================="
 	@echo "QEMU ожидает GDB на порту 1234. Откройте новый терминал и выполните: make gdb"
 	@echo "========================================================="
 	qemu-system-riscv64 -M virt -bios none -kernel bin/kernel.bin -nographic -s -S
 
-# Подключение отладчика gdb-multiarch к QEMU
 gdb:
 	gdb-multiarch -ex "target remote localhost:1234" bin/kernel.elf
-
-# Очистка локального кэша CMake и папки сборки
-clean:
-	rm -rf build
-	rm -f bin/kernel.elf bin/kernel.bin
-
-clear: clean
-
-# Очистка кэша сборки внутри Docker-контейнера
-docker-clear:
-	docker run --rm \
-		--user $$(id -u):$$(id -g) \
-		-v $$(pwd):/workspace \
-		riscv_os_devsecops:latest \
-		rm -rf build bin/*
-
-# Генерация HTML-документации и интерактивных графов вызовов внутри Docker
-docs:
-	@mkdir -p docs/generated
-	docker run --rm \
-		--user $$(id -u):$$(id -g) \
-		-v $$(pwd):/workspace \
-		riscv_os_devsecops:latest \
-		doxygen docs/Doxyfile
-	@echo "Документация и Call-графы сгенерированы в папке: docs/generated/html/index.html"
-
-# Автоматическое форматирование всего Си-кода внутри Docker
-format:
-	docker run --rm \
-		--user $$(id -u):$$(id -g) \
-		-v $$(pwd):/workspace \
-		riscv_os_devsecops:latest \
-		sh -c "find src/ -name '*.c' -o -name '*.h' | xargs clang-format -i"
-	@echo "Код в папке src/ успешно отформатирован по стандарту проекта."

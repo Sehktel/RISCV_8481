@@ -60,24 +60,41 @@ fi
 # 3. Запуск статического анализа Cppcheck внутри нашего Docker-контейнера
 echo "Запуск SAST-анализа кода через Cppcheck..."
 
-# Проверяем, существует ли папка src
 if [ -d "src" ]; then
     docker run --rm \
         --user $(id -u):$(id -g) \
-        -v $(pwd):/workspace \
+        -v "$REPO_ROOT":/workspace \
         riscv_os_devsecops:latest \
-        cppcheck --enable=warning,performance,portability \
-                 --error-exitcode=1 \
-                 --suppress=missingIncludeSystem \
-                 --inline-suppr \
-                 src/
+        make sast
 
     if [ $? -ne 0 ]; then
-        echo "Критическая ошибка: Cppcheck нашел баги или уязвимости в коде!"
+        echo "Критическая ошибка: Cppcheck нашел баги или утечки памяти в коде!"
         echo "Коммит заблокирован. Исправьте предупреждения выше."
         exit 1
     fi
 fi
+
+# # 3. Запуск статического анализа Cppcheck внутри нашего Docker-контейнера
+# echo "Запуск SAST-анализа кода через Cppcheck..."
+
+# # Проверяем, существует ли папка src
+# if [ -d "src" ]; then
+#     docker run --rm \
+#         --user $(id -u):$(id -g) \
+#         -v $(pwd):/workspace \
+#         riscv_os_devsecops:latest \
+#         cppcheck --enable=warning,performance,portability \
+#                  --error-exitcode=1 \
+#                  --suppress=missingIncludeSystem \
+#                  --inline-suppr \
+#                  src/
+
+#     if [ $? -ne 0 ]; then
+#         echo "Критическая ошибка: Cppcheck нашел баги или уязвимости в коде!"
+#         echo "Коммит заблокирован. Исправьте предупреждения выше."
+#         exit 1
+#     fi
+# fi
 
 echo "Все проверки успешно пройдены! Коммит разрешен."
 exit 0
