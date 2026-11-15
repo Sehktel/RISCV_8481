@@ -7,7 +7,7 @@ on:
 
 jobs:
   build-and-sast:
-    runs-on: self-hosted
+    runs-on: ubuntu-latest
     container:
       image: riscv_os_devsecops:latest
     steps:
