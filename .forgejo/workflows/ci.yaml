@@ -52,31 +52,68 @@ jobs:
 
       - name: Cleanup old package versions (keep last 10)
         env:
-          PACKAGE_TOKEN: ${{ secrets.PACKAGE_TOKEN }}
+          PACKAGE_TOKEN: \${{ secrets.PACKAGE_TOKEN }}
         run: |
           OWNER="${GITHUB_REPOSITORY_OWNER:-${GITHUB_REPOSITORY%%/*}}"
           KEEP=10
 
-          curl -sS -u "oauth2:${PACKAGE_TOKEN}" \
-            "http://forgejo:3000/api/v1/packages/${OWNER}/generic/kernel?limit=50" \
-            -o /tmp/versions.json
+          HTTP_CODE=\$(curl -sS -w "%{http_code}" -o /tmp/versions.json \
+            -u "oauth2:\${PACKAGE_TOKEN}" \
+            "http://forgejo:3000/api/v1/packages/\${OWNER}/generic/kernel?limit=50")
 
-          VERSIONS=$(grep -oE '"version" *: *"[^"]*"' /tmp/versions.json | cut -d'"' -f4)
+          echo "HTTP status: \${HTTP_CODE}"
+          echo "Raw response (first 30 lines):"
+          head -n 30 /tmp/versions.json
+
+          if [ "\${HTTP_CODE}" != "200" ]; then
+            echo "API вернул не 200 — прерываем очистку"
+            exit 1
+          fi
+
+          VERSIONS=\$(grep -oE '"version" *: *"[^"]*"' /tmp/versions.json | cut -d'"' -f4)
 
           echo "Найдено версий: $(echo "$VERSIONS" | wc -w)"
           i=0
-          for v in $VERSIONS; do
-            i=$((i+1))
+          for v in \$VERSIONS; do
+            i=\$((i+1))
             if [ "$i" -le "$KEEP" ]; then
-              echo "Оставляем (${i}/${KEEP}): $v"
+              echo "Оставляем (${i}/${KEEP}): \$v"
               continue
             fi
             echo "Удаляю старую версию (${i}): $v"
-            curl -sS -o /dev/null -w "  DELETE ${v}: %{http_code}\n" \
-              -u "oauth2:${PACKAGE_TOKEN}" \
+            curl -sS -o /dev/null -w "  DELETE \${v}: %{http_code}\n" \
+              -u "oauth2:\${PACKAGE_TOKEN}" \
               -X DELETE \
               "http://forgejo:3000/api/packages/${OWNER}/generic/kernel/${v}"
           done
+
+      # - name: Cleanup old package versions (keep last 10)
+      #   env:
+      #     PACKAGE_TOKEN: ${{ secrets.PACKAGE_TOKEN }}
+      #   run: |
+      #     OWNER="${GITHUB_REPOSITORY_OWNER:-${GITHUB_REPOSITORY%%/*}}"
+      #     KEEP=10
+
+      #     curl -sS -u "oauth2:${PACKAGE_TOKEN}" \
+      #       "http://forgejo:3000/api/v1/packages/${OWNER}/generic/kernel?limit=50" \
+      #       -o /tmp/versions.json
+
+      #     VERSIONS=$(grep -oE '"version" *: *"[^"]*"' /tmp/versions.json | cut -d'"' -f4)
+
+      #     echo "Найдено версий: $(echo "$VERSIONS" | wc -w)"
+      #     i=0
+      #     for v in $VERSIONS; do
+      #       i=$((i+1))
+      #       if [ "$i" -le "$KEEP" ]; then
+      #         echo "Оставляем (${i}/${KEEP}): $v"
+      #         continue
+      #       fi
+      #       echo "Удаляю старую версию (${i}): $v"
+      #       curl -sS -o /dev/null -w "  DELETE ${v}: %{http_code}\n" \
+      #         -u "oauth2:${PACKAGE_TOKEN}" \
+      #         -X DELETE \
+      #         "http://forgejo:3000/api/packages/${OWNER}/generic/kernel/${v}"
+      #     done
 
 
       # - name: Cleanup old package versions (keep last 10)
