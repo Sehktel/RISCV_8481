@@ -64,7 +64,7 @@ jobs:
 ```yaml
 services:
   forgejo:
-    image: codeberg.org/forgejo/forgejo:9
+    image: codeberg.org/forgejo/forgejo:15
     container_name: devsecops_forgejo
     restart: unless-stopped
     environment:
@@ -87,7 +87,7 @@ services:
       - devsecops_net
 
   forgejo-runner:
-    image: code.forgejo.org/forgejo/runner:5.0.2
+    image: code.forgejo.org/forgejo/runner:13
     container_name: devsecops_runner
     restart: unless-stopped
     depends_on:
@@ -105,34 +105,6 @@ services:
       sh -c 'if [ ! -f /data/.runner ]; then forgejo-runner register --no-interactive --instance http://forgejo:3000 --token "$FORGEJO_RUNNER_TOKEN" --name riscv-local-runner --labels ubuntu-latest:docker://riscv_os_devsecops:latest; fi && forgejo-runner daemon --config /config.yaml'
     networks:
       - devsecops_net
-
-  # forgejo-runner:
-  #   image: code.forgejo.org/forgejo/runner:5.0.2
-  #   container_name: devsecops_runner
-  #   restart: unless-stopped
-  #   depends_on:
-  #     - forgejo
-  #   user: root
-  #   environment:
-  #     - CONFIG_FILE=/config.yaml
-  #   volumes:
-  #     - ./runner-config.yaml:/config.yaml:ro
-  #     - runner_data:/data
-  #     - /var/run/docker.sock:/var/run/docker.sock
-  #   working_dir: /data
-  #   command: >
-  #     sh -c "
-  #     if [ ! -f /data/.runner ]; then
-  #       forgejo-runner register --no-interactive \
-  #         --instance http://forgejo:3000 \
-  #         --token $${FORGEJO_RUNNER_TOKEN} \
-  #         --name riscv-local-runner \
-  #         --labels ubuntu-latest:docker://riscv_os_devsecops:latest;
-  #     fi &&
-  #     forgejo-runner daemon --config /config.yaml
-  #     "
-  #   networks:
-  #     - devsecops_net
 
 volumes:
   forgejo_data:
