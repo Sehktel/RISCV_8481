@@ -24,10 +24,14 @@ jobs:
       - name: First-Line SAST & Memory Leak Audit (Cppcheck)
         run: make sast
 
+      - name: Advanced SAST - CERT & Bugprone (Clang-Tidy)
+        run: make tidy
+
       - name: Cross-Compile Kernel (RV64GC)
         run: |
           make build
           ls -lh bin/kernel.elf bin/kernel.bin
+
 
       # Выгрузка артефакта без actions/upload-artifact (без node-контейнера):
       # Forgejo Generic Packages API, работает на чистом curl.
@@ -84,31 +88,3 @@ jobs:
               -X DELETE \
               "http://forgejo:3000/api/packages/${OWNER}/generic/kernel/${v}"
           done
-      # - name: Cleanup old package versions (keep last 10)
-      #   env:
-      #     PACKAGE_TOKEN: ${{ secrets.PACKAGE_TOKEN }}
-      #   run: |
-      #     OWNER="${GITHUB_REPOSITORY_OWNER:-${GITHUB_REPOSITORY%%/*}}"
-      #     KEEP=10
-
-      #     # Версия Forgejo — по ней поймём, какие эндпоинты должны существовать
-      #     curl -sS -o /dev/null -w "api/v1/version: %{http_code}\n" \
-      #       -u "oauth2:${PACKAGE_TOKEN}" \
-      #       "http://forgejo:3000/api/v1/version"
-      #     curl -sS -u "oauth2:${PACKAGE_TOKEN}" \
-      #       "http://forgejo:3000/api/v1/version" ; echo
-
-      #     # Список пакетов владельца (старый, давно существующий маршрут)
-      #     curl -sS -o /dev/null -w "list packages: %{http_code}\n" \
-      #       -u "oauth2:${PACKAGE_TOKEN}" \
-      #       "http://forgejo:3000/api/v1/packages/${OWNER}?type=generic&q=kernel"
-
-      #     # Список версий пакета (маршрут, который дал 404)
-      #     curl -sS -o /dev/null -w "list versions: %{http_code}\n" \
-      #       -u "oauth2:${PACKAGE_TOKEN}" \
-      #       "http://forgejo:3000/api/v1/packages/${OWNER}/generic/kernel"
-
-      #     # Конкретная версия — существующий SHA из вашего пакета
-      #     curl -sS -o /dev/null -w "get one version: %{http_code}\n" \
-      #       -u "oauth2:${PACKAGE_TOKEN}" \
-      #       "http://forgejo:3000/api/v1/packages/${OWNER}/generic/kernel/b013a572a1176b872a65f4638126bdf63e30f6b3"

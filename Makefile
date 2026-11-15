@@ -30,7 +30,7 @@ endif
 
 .PHONY: all build style sast format clean clear \
         docker-build docker-clear docker-format docker-style docker-sast \
-        run debug gdb
+        run debug gdb tidy docker-tidy
 
 # Базовый конвейер: чистая сборка в контейнере и запуск в QEMU
 all: docker-clear build run
@@ -57,6 +57,17 @@ sast:
 	         --suppress=unusedFunction \
 	         --inline-suppr \
 	         src/
+## Глубокий статический анализ кода (clang-tidy: bugprone-*, cert-*)
+tidy:
+	$(DOCKER_RUN) sh -c "clang-tidy src/*.c \
+	         --warnings-as-errors='*' \
+	         -- \
+	         --target=riscv64-unknown-elf \
+	         -march=rv64gc \
+	         -mabi=lp64d \
+	         -ffreestanding \
+	         -nostdlib \
+	         -Isrc"
 
 ## Автоматическое форматирование кода (clang-format)
 format:
@@ -77,6 +88,8 @@ docker-style: style
 docker-sast: sast
 docker-format: format
 docker-clear: clean
+docker-tidy: tidy
+
 
 # ==============================================================================
 # 3. ГЕНЕРАЦИЯ ДОКУМЕНТАЦИИ

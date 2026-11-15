@@ -1,0 +1,24 @@
+---
+Checks: >
+  -*,
+  bugprone-*,
+  cert-*,
+  -bugprone-easily-swappable-parameters,
+  -bugprone-implicit-widening-of-multiplication-result,
+  -bugprone-branch-clone,
+  -cert-err33-c,
+  -cert-msc30-c,
+  -cert-msc50-cpp,
+  -cert-dcl37-c,
+  -cert-dcl51-cpp
+
+WarningsAsErrors: '*'
+
+HeaderFilterRegex: 'src/.*\.h$'
+
+CheckOptions:
+  - key: bugprone-sizeof-expression.WarnOnSizeOfPointer
+    value: 'true'
+  - key: bugprone-suspicious-memset-usage.WarnOnZeroLength
+    value: 'true'
+...

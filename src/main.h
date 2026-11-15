@@ -48,8 +48,10 @@ typedef _Bool bool;
 /// Частота таймера: 10 МГц для QEMU virt, 25 МГц для реального железа
 #define TIMER_FREQ 10000000ULL
 
+// NOLINTBEGIN(bugprone-reserved-identifier)
 extern char _heap_start[];
 extern char _heap_end[];
+// NOLINTEND(bugprone-reserved-identifier)
 
 #define ALIGN16(x) (((x) + 15) & ~((size_t)15))
 
