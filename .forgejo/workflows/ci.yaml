@@ -34,7 +34,15 @@ jobs:
       - name: Publish kernel artifact
         run: |
           curl -sS --fail \
-            --user "oauth2:${GITHUB_TOKEN}" \
+            --user "oauth2:${PACKAGE_TOKEN}" \
             --upload-file bin/kernel.bin \
             "http://forgejo:3000/api/packages/${GITHUB_REPOSITORY_OWNER}/generic/kernel/${GITHUB_SHA}/kernel.bin" \
             && echo "Артефакт: Packages -> kernel -> version ${GITHUB_SHA}"
+
+      # - name: Publish kernel artifact
+      #   run: |
+      #     curl -sS --fail \
+      #       --user "oauth2:${GITHUB_TOKEN}" \
+      #       --upload-file bin/kernel.bin \
+      #       "http://forgejo:3000/api/packages/${GITHUB_REPOSITORY_OWNER}/generic/kernel/${GITHUB_SHA}/kernel.bin" \
+      #       && echo "Артефакт: Packages -> kernel -> version ${GITHUB_SHA}"
