@@ -32,21 +32,33 @@ jobs:
       # Выгрузка артефакта без actions/upload-artifact (без node-контейнера):
       # Forgejo Generic Packages API, работает на чистом curl.
       - name: Publish kernel artifact
+        env:
+          PACKAGE_TOKEN: ${{ secrets.PACKAGE_TOKEN }}
         run: |
-          # Diagnostics: секрет доходит? какой owner? валиден ли токен?
-          echo "PACKAGE_TOKEN: ${PACKAGE_TOKEN:+передан}"
           OWNER="${GITHUB_REPOSITORY_OWNER:-${GITHUB_REPOSITORY%%/*}}"
-          echo "Owner: $OWNER | Repository: $GITHUB_REPOSITORY"
 
-          # 1) Проверка токена через Bearer-заголовок
-          curl -sS -o /dev/null -w "v1/user (Bearer): %{http_code}\n" \
-            -H "Authorization: token ${PACKAGE_TOKEN}" \
-            "http://forgejo:3000/api/v1/user"
+          curl -sS --fail \
+            --user "oauth2:${PACKAGE_TOKEN}" \
+            --upload-file bin/kernel.bin \
+            "http://forgejo:3000/api/packages/${OWNER}/generic/kernel/${GITHUB_SHA}/kernel.bin" \
+            && echo "Артефакт: Packages -> kernel -> version ${GITHUB_SHA}"
 
-          # 2) Проверка токена через basic auth (как в выгрузке)
-          curl -sS -o /dev/null -w "v1/user (basic): %{http_code}\n" \
-            -u "oauth2:${PACKAGE_TOKEN}" \
-            "http://forgejo:3000/api/v1/user"
+      # - name: Publish kernel artifact
+      #   run: |
+      #     # Diagnostics: секрет доходит? какой owner? валиден ли токен?
+      #     echo "PACKAGE_TOKEN: ${PACKAGE_TOKEN:+передан}"
+      #     OWNER="${GITHUB_REPOSITORY_OWNER:-${GITHUB_REPOSITORY%%/*}}"
+      #     echo "Owner: $OWNER | Repository: $GITHUB_REPOSITORY"
+
+      #     # 1) Проверка токена через Bearer-заголовок
+      #     curl -sS -o /dev/null -w "v1/user (Bearer): %{http_code}\n" \
+      #       -H "Authorization: token ${PACKAGE_TOKEN}" \
+      #       "http://forgejo:3000/api/v1/user"
+
+      #     # 2) Проверка токена через basic auth (как в выгрузке)
+      #     curl -sS -o /dev/null -w "v1/user (basic): %{http_code}\n" \
+      #       -u "oauth2:${PACKAGE_TOKEN}" \
+      #       "http://forgejo:3000/api/v1/user"
 
       # curl -sS --fail \
       #   --user "oauth2:${PACKAGE_TOKEN}" \
