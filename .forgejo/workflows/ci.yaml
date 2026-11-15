@@ -56,8 +56,8 @@ jobs:
         env:
           PACKAGE_TOKEN: \${{ secrets.PACKAGE_TOKEN }}
         run: |
-          getent hosts forgejo || echo "forgejo не резолвится!"
-          curl -v http://forgejo:3000/
+          # getent hosts forgejo || echo "forgejo не резолвится!"
+          # curl -v http://forgejo:3000/
 
           OWNER="${GITHUB_REPOSITORY_OWNER:-${GITHUB_REPOSITORY%%/*}}"
           KEEP=10
