@@ -1,47 +1,40 @@
-# .gitea/workflows/ci.yaml
-name: CI
+name: RISC-V Microkernel CI (Stage 7)
 
 on:
   push:
-    branches: [main]
+    branches: [ main, master ]
+  pull_request:
+    branches: [ main, master ]
 
 jobs:
   build-and-sast:
     runs-on: ubuntu-latest
     container:
       image: riscv_os_devsecops:latest
+
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v4
+        run: |
+          git config --global --add safe.directory "$(pwd)"
+          git clone --depth 1 --branch "${GITHUB_REF_NAME}" "http://oauth2:${GITHUB_TOKEN}@forgejo:3000/${GITHUB_REPOSITORY}.git" .
 
-      # Кэш каталога сборки: инкрементальная пересборка вместо полной
-      - name: Cache build directory
-        uses: actions/cache@v4
-        continue-on-error: true
-        with:
-          path: build
-          key: cmake-${{ hashFiles('src/**', 'cmake/**', 'Makefile') }}
-          restore-keys: cmake-
-
-      - name: Code style gate
+      - name: Code Style Gate (clang-format)
         run: make style
 
-      - name: SAST (cppcheck)
+      - name: First-Line SAST & Memory Leak Audit (Cppcheck)
         run: make sast
 
-      - name: Build kernel
-        run: make build
+      - name: Cross-Compile Kernel (RV64GC)
+        run: |
+          make build
+          ls -lh bin/kernel.elf bin/kernel.bin
 
-      # Job-контейнер работает от root; возвращаем файлы вашему пользователю
-      - name: Fix artifact ownership
-        run: chown -R $(id -u):$(id -g) build bin || true
-
-      - name: Upload kernel artifact
-        uses: actions/upload-artifact@v3
-        with:
-          name: kernel-${{ github.sha }}
-          path: |
-            bin/kernel.bin
-            bin/kernel.elf
-          retention-days: 7
-          if-no-files-found: error
+      # Выгрузка артефакта без actions/upload-artifact (без node-контейнера):
+      # Forgejo Generic Packages API, работает на чистом curl.
+      - name: Publish kernel artifact
+        run: |
+          curl -sS --fail \
+            --user "oauth2:${GITHUB_TOKEN}" \
+            --upload-file bin/kernel.bin \
+            "http://forgejo:3000/api/packages/${GITHUB_REPOSITORY_OWNER}/generic/kernel/${GITHUB_SHA}/kernel.bin" \
+            && echo "Артефакт: Packages -> kernel -> version ${GITHUB_SHA}"
