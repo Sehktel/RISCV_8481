@@ -651,6 +651,133 @@ void print_uptime(void) {
 }
 
 /**
+ * @brief Обёртка пользовательского пространства над инструкцией ecall.
+ * Выполняется в U-mode: прямая запись в UART0 здесь вызвала бы Load/Store Fault
+ * при включённом PMP, поэтому обращение к ядру идёт строго через ABI ecall.
+ */
+static uint64_t sys_call(uint64_t sys_num, uint64_t arg0, uint64_t arg1) {
+    register uint64_t a0 asm("a0") = arg0;
+    register uint64_t a1 asm("a1") = arg1;
+    register uint64_t a7 asm("a7") = sys_num;
+
+    asm volatile("ecall" : "+r"(a0) : "r"(a1), "r"(a7) : "memory");
+    return a0;
+}
+
+/**
+ * @brief Тестовая задача, исполняемая процессором строго в User Mode (U-mode).
+ */
+static void user_task(void) {
+    const char* msg = "[U-MODE] Привет из непривилегированного пространства! Запрашиваю тики...\n";
+    sys_call(SYS_PRINT, (uint64_t)msg, 0);
+
+    uint64_t ticks = sys_call(SYS_GET_TICKS, 0, 0);
+    if (ticks > 0) {
+        sys_call(SYS_PRINT, (uint64_t) "[U-MODE] Системный вызов SYS_GET_TICKS вернул ненулевое время!\n", 0);
+    }
+
+    sys_call(SYS_PRINT, (uint64_t) "[U-MODE] Вызываю SYS_EXIT(0) для возврата в ядро...\n", 0);
+    sys_call(SYS_EXIT, 0, 0);
+
+    for (;;) {
+    }
+}
+
+/**
+ * @brief Центральный диспетчер синхронных исключений и прерываний ядра.
+ */
+void trap_handler(trap_frame_t* frame) {
+    uint64_t mcause = read_csr(mcause);
+    uint64_t mepc = read_csr(mepc);
+    uint64_t mtval = read_csr(mtval);
+
+    // Проверяем старший бит: 1 = аппаратное прерывание, 0 = синхронное исключение
+    if ((mcause >> 63) != 0) {
+        kprintf("[TRAP] Аппаратное прерывание: mcause=0x%lx, mepc=0x%lx\n", mcause, mepc);
+        return;
+    }
+
+    if (mcause == CAUSE_ECALL_FROM_UMODE) {
+        uint64_t sys_num = frame->a7;
+
+        switch (sys_num) {
+        case SYS_PRINT: {
+            const char* str = (const char*)frame->a0;
+            if (str != NULL) {
+                print(str);
+            }
+            frame->a0 = 0;
+            break;
+        }
+        case SYS_GET_TICKS: {
+            frame->a0 = get_ticks();
+            break;
+        }
+        case SYS_EXIT: {
+            uint64_t exit_code = frame->a0;
+            kprintf("[KERNEL] Процесс U-mode завершился через SYS_EXIT (код: %lu)\n", exit_code);
+            // Фрейм enter_user_mode находится ровно над 256-байтным trap_frame_t
+            frame->sp = (uintptr_t)frame + sizeof(trap_frame_t);
+            write_csr(mepc, (uint64_t)exit_user_mode_return);
+            uint64_t mstatus = read_csr(mstatus);
+            mstatus |= MSTATUS_MPP_MASK; // Возвращаемся обратно в Machine Mode (MPP = 11)
+            write_csr(mstatus, mstatus);
+            return;
+        }
+        // case SYS_EXIT: {
+        //     uint64_t exit_code = frame->a0;
+        //     kprintf("[KERNEL] Процесс U-mode завершился через SYS_EXIT (код: %lu)\n", exit_code);
+        //     // Перенаправляем mret в точку возврата ядра exit_user_mode_return
+        //     uint64_t kernel_sp = read_csr(mscratch);
+        //     frame->sp = kernel_sp;
+        //     write_csr(mepc, (uint64_t)exit_user_mode_return);
+        //     uint64_t mstatus = read_csr(mstatus);
+        //     mstatus |= MSTATUS_MPP_MASK; // Возвращаемся обратно в Machine Mode (MPP = 11)
+        //     write_csr(mstatus, mstatus);
+        //     return;
+        // }
+        default:
+            kprintf("[SECURITY] Неизвестный syscall %lu из U-mode (mepc=0x%lx)\n", sys_num, mepc);
+            frame->a0 = (uint64_t)-1;
+            break;
+        }
+
+        // Инструкция ecall занимает 4 байта — сдвигаем mepc на следующую инструкцию
+        write_csr(mepc, mepc + 4);
+        return;
+    }
+
+    kprintf("\n[PANIC] Необработанное исключение: mcause=%lu, mepc=0x%lx, mtval=0x%lx\n", mcause, mepc, mtval);
+    for (;;) {
+        asm volatile("wfi");
+    }
+}
+
+/**
+ * @brief Выделяет пользовательский стек в куче и запускает user_task в U-mode.
+ */
+void run_user_mode_demo(void) {
+    const size_t user_stack_size = 4096;
+    uint8_t* user_stack = (uint8_t*)kmalloc(user_stack_size);
+    if (user_stack == NULL) {
+        kprintf("[ERROR] Не удалось выделить память под стек U-mode\n");
+        return;
+    }
+
+    // Временное открывающее правило PMP TOR на всё пространство (на Этапе 10 сузим до границ)
+    write_csr(pmpaddr0, (~0ULL) >> 10);
+    write_csr(pmpcfg0, 0x0FULL);
+
+    uintptr_t user_sp = (uintptr_t)(user_stack + user_stack_size);
+    kprintf("[KERNEL] Опускаем процессор в U-mode (entry=0x%lx, user_sp=0x%lx)...\n", (uintptr_t)user_task, user_sp);
+
+    enter_user_mode((uintptr_t)user_task, user_sp);
+
+    kprintf("[KERNEL] Управление успешно возвращено в M-mode Shell!\n");
+    kfree(user_stack);
+}
+
+/**
  * @brief Разбирает и выполняет команду, введённую пользователем.
  * @param cmd Указатель на NUL-терминированную строку с командой.
  *
@@ -663,6 +790,7 @@ void print_uptime(void) {
  * | time, uptime  | Время работы системы                              |
  * | mem           | Показать карту кучи (heap)                        |
  * | memtest       | Выполнить тест аллокатора памяти                  |
+ * | usermode      | Запустить задачу в User Mode (U-mode + ecall)     |
  * | exit, quit    | Завершение работы (poweroff)                      |
  *
  * Пустая строка молча игнорируется; неизвестная команда печатает ошибку.
@@ -682,6 +810,7 @@ void execute_command(const char* cmd) {
         kprintf("  time, uptime - Показать время работы системы\n");
         kprintf("  mem          - Показать карту кучи (heap)\n");
         kprintf("  memtest      - Выполнить тест аллокатора памяти\n");
+        kprintf("  usermode     - Запустить задачу в User Mode (U-mode + ecall)\n");
         kprintf("  exit, quit   - Завершение работы программы\n");
     } else if (mystrcmp(cmd, "info") == 0) {
         uint64_t sp_val;
@@ -703,6 +832,8 @@ void execute_command(const char* cmd) {
         heap_dump();
     } else if (mystrcmp(cmd, "memtest") == 0) {
         heap_test();
+    } else if (mystrcmp(cmd, "usermode") == 0) {
+        run_user_mode_demo();
     } else if (mystrlen(cmd) > 0) {
         kprintf("Ошибка: неизвестная команда '%s'. Введите 'help'\n", cmd);
     }

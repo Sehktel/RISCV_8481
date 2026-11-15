@@ -76,6 +76,68 @@ static uintptr_t heap_bounds_end = 0;
 // Сколько байтов payload проверяем на яд при каждом выделении
 #define HEAP_UAF_CHECK_BYTES 16
 
+// Константы битов прерываний и привилегий RISC-V
+#define MSTATUS_MIE (1ULL << 3)       // Глобальное разрешение прерываний в Machine-mode
+#define MSTATUS_MPIE (1ULL << 7)      // Предыдущее состояние MIE до входа в ловушку
+#define MSTATUS_MPP_MASK (3ULL << 11) // Маска режима привилегий (00=U, 01=S, 11=M)
+#define MIE_MTIE (1ULL << 7) // Разрешение прерываний от машинного таймера
+
+// Коды исключений (mcause при старшем бите = 0)
+#define CAUSE_ILLEGAL_INSTRUCTION 2ULL
+#define CAUSE_ECALL_FROM_UMODE 8ULL
+#define CAUSE_ECALL_FROM_MMODE 11ULL
+
+// Таблица системных вызовов (ABI RISC-V: номер в a7, аргументы в a0..a2)
+#define SYS_PRINT 1ULL
+#define SYS_GET_TICKS 2ULL
+#define SYS_EXIT 93ULL
+
+// Структура сохранённого контекста (должна строго соответствовать смещениям в trap_vector)
+typedef struct {
+    uint64_t ra;
+    uint64_t gp;
+    uint64_t tp;
+    uint64_t t0;
+    uint64_t t1;
+    uint64_t t2;
+    uint64_t s0;
+    uint64_t s1;
+    uint64_t a0;
+    uint64_t a1;
+    uint64_t a2;
+    uint64_t a3;
+    uint64_t a4;
+    uint64_t a5;
+    uint64_t a6;
+    uint64_t a7;
+    uint64_t s2;
+    uint64_t s3;
+    uint64_t s4;
+    uint64_t s5;
+    uint64_t s6;
+    uint64_t s7;
+    uint64_t s8;
+    uint64_t s9;
+    uint64_t s10;
+    uint64_t s11;
+    uint64_t t3;
+    uint64_t t4;
+    uint64_t t5;
+    uint64_t t6;
+    uint64_t sp;
+    uint64_t padding;
+} trap_frame_t;
+
+_Static_assert(sizeof(trap_frame_t) == 256, "trap_frame_t must match 256-byte assembly frame");
+
+// Макрос чтения CSR
+#define read_csr(reg)                                                                                                  \
+    ({                                                                                                                 \
+        uint64_t __tmp;                                                                                                \
+        asm volatile("csrr %0, " #reg : "=r"(__tmp));                                                                  \
+        __tmp;                                                                                                         \
+    })
+
 void heap_init(void);
 void heap_dump(void);
 void heap_test(void);
@@ -93,3 +155,8 @@ void kprintf(const char* fmt, ...);
 uint64_t get_ticks(void);
 void print_uptime(void);
 void execute_command(const char* cmd);
+
+void trap_handler(trap_frame_t* frame);
+void enter_user_mode(uintptr_t entry, uintptr_t user_sp);
+void exit_user_mode_return(void);
+void run_user_mode_demo(void);
