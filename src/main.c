@@ -810,7 +810,7 @@ void execute_command(const char* cmd) {
         kprintf("  time, uptime - Показать время работы системы\n");
         kprintf("  mem          - Показать карту кучи (heap)\n");
         kprintf("  memtest      - Выполнить тест аллокатора памяти\n");
-        kprintf("  usermode     - Запустить задачу в User Mode (U-mode + ecall)\n");
+        kprintf("  usermode    -- Запустить задачу в User Mode (U-mode + ecall)\n");
         kprintf("  exit, quit   - Завершение работы программы\n");
     } else if (mystrcmp(cmd, "info") == 0) {
         uint64_t sp_val;
