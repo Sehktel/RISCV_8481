@@ -1,30 +1,47 @@
-name: RISC-V Microkernel CI (Stage 7)
+# .gitea/workflows/ci.yaml
+name: CI
 
 on:
   push:
-    branches: [ main, master ]
-  pull_request:
-    branches: [ main, master ]
+    branches: [main]
 
 jobs:
   build-and-sast:
-    runs-on: ubuntu-latest
+    runs-on: self-hosted
     container:
       image: riscv_os_devsecops:latest
-
     steps:
       - name: Checkout repository
-        run: |
-          git config --global --add safe.directory "$(pwd)"
-          git clone --depth 1 --branch "${GITHUB_REF_NAME}" "http://oauth2:${GITHUB_TOKEN}@forgejo:3000/${GITHUB_REPOSITORY}.git" .
+        uses: actions/checkout@v4
 
-      - name: Code Style Gate (clang-format)
+      # Кэш каталога сборки: инкрементальная пересборка вместо полной
+      - name: Cache build directory
+        uses: actions/cache@v4
+        continue-on-error: true
+        with:
+          path: build
+          key: cmake-${{ hashFiles('src/**', 'cmake/**', 'Makefile') }}
+          restore-keys: cmake-
+
+      - name: Code style gate
         run: make style
 
-      - name: First-Line SAST & Memory Leak Audit (Cppcheck)
+      - name: SAST (cppcheck)
         run: make sast
 
-      - name: Cross-Compile Kernel (RV64GC)
-        run: |
-          make build
-          ls -lh bin/kernel.elf bin/kernel.bin
+      - name: Build kernel
+        run: make build
+
+      # Job-контейнер работает от root; возвращаем файлы вашему пользователю
+      - name: Fix artifact ownership
+        run: chown -R $(id -u):$(id -g) build bin || true
+
+      - name: Upload kernel artifact
+        uses: actions/upload-artifact@v3
+        with:
+          name: kernel-${{ github.sha }}
+          path: |
+            bin/kernel.bin
+            bin/kernel.elf
+          retention-days: 7
+          if-no-files-found: error
