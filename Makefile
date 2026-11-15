@@ -8,12 +8,27 @@
 # ==============================================================================
 
 
-# Абсолютный путь к docker: хуки и CI могут запускать make
-# с урезанным PATH, поэтому имя бинаря не ищем через PATH.
+# ---------------------------------------------------------------
+# Режим исполнения атомарных целей:
+#   - на хосте (разработка, pre-commit) — всё через контейнер;
+#   - внутри CI-контейнера (act/Gitea Actions) — нативно,
+#     потому что docker внутри контейнера недоступен.
+# ---------------------------------------------------------------
+ifeq ($(CI),true)
+DOCKER_RUN =
+else
 DOCKER_BIN := $(shell command -v docker 2>/dev/null)
 ifeq ($(strip $(DOCKER_BIN)),)
 DOCKER_BIN := /usr/bin/docker
 endif
+
+DOCKER_RUN = $(DOCKER_BIN) run --rm \
+	--user $$(id -u):$$(id -g) \
+	-v $$(pwd):/workspace \
+	-w /workspace \
+	riscv_os_devsecops:latest
+endif
+
 
 
 .PHONY: all build style sast format clean clear \
