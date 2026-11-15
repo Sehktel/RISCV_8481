@@ -1,6 +1,6 @@
 services:
   forgejo:
-    image: codeberg.org/forgejo/forgejo:9
+    image: codeberg.org/forgejo/forgejo:15
     container_name: devsecops_forgejo
     restart: unless-stopped
     environment:
@@ -23,7 +23,8 @@ services:
       - devsecops_net
 
   forgejo-runner:
-    image: code.forgejo.org/forgejo/runner:5.0.2
+
+    image: code.forgejo.org/forgejo/runner:13
     container_name: devsecops_runner
     restart: unless-stopped
     depends_on:
