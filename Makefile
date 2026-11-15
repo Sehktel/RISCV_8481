@@ -3,18 +3,17 @@
 #
 # Архитектура сборки:
 #   Весь тулчейн (CMake, clang-format, cppcheck, Doxygen) живёт в контейнере
-#   riscv_os_devsecops. Атомарные цели (секция 1) выполняются ВНУТРИ контейнера,
-#   поэтому на хосте достаточно только Docker, QEMU и GDB.
+#   riscv_os_devsecops. На хосте атомарные цели исполняются через контейнер,
+#   внутри CI-контейнера (act/Gitea Actions) — нативно, потому что docker
+#   внутри контейнера недоступен.
 # ==============================================================================
 
-
 # ---------------------------------------------------------------
-# Режим исполнения атомарных целей:
-#   - на хосте (разработка, pre-commit) — всё через контейнер;
-#   - внутри CI-контейнера (act/Gitea Actions) — нативно,
-#     потому что docker внутри контейнера недоступен.
+# Режим исполнения атомарных целей.
+# Переменная CI выставляется act/Gitea Actions автоматически;
+# внутри job-контейнера DOCKER_RUN пуст и команды идут напрямую.
 # ---------------------------------------------------------------
-ifeq ($(CI),true)
+ifneq ($(CI),)
 DOCKER_RUN =
 else
 DOCKER_BIN := $(shell command -v docker 2>/dev/null)
@@ -29,8 +28,6 @@ DOCKER_RUN = $(DOCKER_BIN) run --rm \
 	riscv_os_devsecops:latest
 endif
 
-
-
 .PHONY: all build style sast format clean clear \
         docker-build docker-clear docker-format docker-style docker-sast \
         run debug gdb
@@ -38,20 +35,17 @@ endif
 # Базовый конвейер: чистая сборка в контейнере и запуск в QEMU
 all: docker-clear build run
 
-# Единая команда запуска контейнера с правами текущего пользователя
-DOCKER_RUN = docker run --rm \
-	--user $$(id -u):$$(id -g) \
-	-v $$(pwd):/workspace \
-	-w /workspace \
-	riscv_os_devsecops:latest
-
 # ==============================================================================
-# 1. АТОМАРНЫЕ ЦЕЛИ (всегда выполняются внутри контейнера)
+# 1. АТОМАРНЫЕ ЦЕЛИ
 # ==============================================================================
 
 ## Сборка ядра (CMake + кросс-тулчейн RISC-V)
 build:
 	$(DOCKER_RUN) sh -c "cmake -B build -DCMAKE_TOOLCHAIN_FILE=cmake/riscv64-toolchain.cmake . && cmake --build build"
+
+## Проверка стиля кода (clang-format, только проверка)
+style:
+	$(DOCKER_RUN) sh -c "find src/ $ -name '*.c' -o -name '*.h' $ | xargs clang-format --dry-run --Werror"
 
 ## Статический анализ кода (cppcheck)
 sast:
@@ -63,10 +57,6 @@ sast:
 	         --suppress=unusedFunction \
 	         --inline-suppr \
 	         src/
-
-## Проверка стиля кода (clang-format, только проверка)
-style:
-	$(DOCKER_RUN) sh -c "find src/ $ -name '*.c' -o -name '*.h' $ | xargs clang-format --dry-run --Werror"
 
 ## Автоматическое форматирование кода (clang-format)
 format:
