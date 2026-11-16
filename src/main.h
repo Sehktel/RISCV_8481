@@ -95,9 +95,9 @@ static uintptr_t heap_bounds_end = 0;
 #define SYS_EXIT 93ULL
 
 // Регистры аппаратного таймера CLINT на плате QEMU virt (Hart 0)
-#define CLINT_BASE       0x02000000UL
-#define CLINT_MTIMECMP0  ((volatile uint64_t*)(CLINT_BASE + 0x4000))
-#define CLINT_MTIME      ((volatile uint64_t*)(CLINT_BASE + 0xBFF8))
+#define CLINT_BASE 0x02000000UL
+#define CLINT_MTIMECMP0 ((volatile uint64_t*)(CLINT_BASE + 0x4000))
+#define CLINT_MTIME ((volatile uint64_t*)(CLINT_BASE + 0xBFF8))
 
 // Квант времени планировщика: 100 мс при частоте таймера 10 МГц (1 000 000 тиков)
 #define SCHED_QUANTUM_TICKS (TIMER_FREQ / 10)
@@ -108,12 +108,7 @@ static uintptr_t heap_bounds_end = 0;
 // Состояния потока и дескриптор задачи (Task Control Block)
 #define MAX_TASKS 4
 
-typedef enum {
-    TASK_UNUSED = 0,
-    TASK_READY  = 1,
-    TASK_RUNNING = 2,
-    TASK_EXITED = 3
-} task_state_t;
+typedef enum { TASK_UNUSED = 0, TASK_READY = 1, TASK_RUNNING = 2, TASK_EXITED = 3 } task_state_t;
 
 // Структура сохранённого контекста (должна строго соответствовать смещениям в trap_vector)
 typedef struct {
@@ -156,10 +151,10 @@ _Static_assert(sizeof(trap_frame_t) == 256, "trap_frame_t must match 256-byte as
 typedef struct {
     int id;
     task_state_t state;
-    uint64_t mepc;          // Сохранённый счётчик команд потока
-    uint8_t* kstack;        // Выделенный в куче стек ядра (на вершине лежит trap_frame_t)
-    uint8_t* ustack;        // Выделенный в куче стек пользователя
-    trap_frame_t* frame;    // Указатель на контекст 32 регистров в kstack
+    uint64_t mepc;   // Сохранённый счётчик команд потока
+    uint8_t* kstack; // Выделенный в куче стек ядра (на вершине лежит trap_frame_t)
+    uint8_t* ustack; // Выделенный в куче стек пользователя
+    trap_frame_t* frame; // Указатель на контекст 32 регистров в kstack
 } task_t;
 
 // Макрос чтения CSR
@@ -175,8 +170,6 @@ static int current_task_idx = -1;
 static int scheduler_active = 0;
 static int timer_ticks_count = 0;
 static uintptr_t shell_return_sp = 0;
-
-
 
 void heap_init(void);
 void heap_dump(void);
@@ -196,7 +189,7 @@ uint64_t get_ticks(void);
 void print_uptime(void);
 void execute_command(const char* cmd);
 
-//void trap_handler(trap_frame_t* frame);
+// void trap_handler(trap_frame_t* frame);
 trap_frame_t* trap_handler(trap_frame_t* frame);
 
 void run_scheduler_demo(void);

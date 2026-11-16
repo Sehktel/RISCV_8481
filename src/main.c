@@ -683,10 +683,6 @@ static void user_task(void) {
     }
 }
 
-
-
-
-
 /**
  * @brief Планирует следующее прерывание таймера CLINT через quantum тиков.
  */
@@ -713,7 +709,7 @@ static void worker_task_a(void) {
     uint64_t iter = 0;
     for (;;) {
         if ((iter % 2000000ULL) == 0) {
-            sys_call(SYS_PRINT, (uint64_t)"  [TASK A | U-mode] Выполняю вычисления...\n", 0);
+            sys_call(SYS_PRINT, (uint64_t) "  [TASK A | U-mode] Выполняю вычисления...\n", 0);
         }
         iter++;
     }
@@ -726,7 +722,7 @@ static void worker_task_b(void) {
     uint64_t iter = 0;
     for (;;) {
         if ((iter % 2000000ULL) == 0) {
-            sys_call(SYS_PRINT, (uint64_t)"  [TASK B | U-mode] Параллельный поток активен!\n", 0);
+            sys_call(SYS_PRINT, (uint64_t) "  [TASK B | U-mode] Параллельный поток активен!\n", 0);
         }
         iter++;
     }
@@ -898,7 +894,6 @@ void run_scheduler_demo(void) {
         kfree(tasks[i].ustack);
     }
 }
-
 
 // /**
 //  * @brief Центральный диспетчер синхронных исключений и прерываний ядра.
