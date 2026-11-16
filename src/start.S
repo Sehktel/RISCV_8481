@@ -31,6 +31,95 @@ park:
 # ============================================================================
 # ВЕКТОР ЛОВУШЕК (TRAP VECTOR) — выровнен по 4 байтам
 # ============================================================================
+# .align 4
+# trap_vector:
+#     # Атомарно меняем местами sp (пользовательский) и mscratch (стек ядра)
+#     csrrw sp, mscratch, sp
+
+#     # Выделяем 256 байт (32 регистра * 8 байт) на стеке ядра для сохранения контекста
+#     addi sp, sp, -256
+
+#     sd ra,   0(sp)
+#     sd gp,   8(sp)
+#     sd tp,   16(sp)
+#     sd t0,   24(sp)
+#     sd t1,   32(sp)
+#     sd t2,   40(sp)
+#     sd s0,   48(sp)
+#     sd s1,   56(sp)
+#     sd a0,   64(sp)
+#     sd a1,   72(sp)
+#     sd a2,   80(sp)
+#     sd a3,   88(sp)
+#     sd a4,   96(sp)
+#     sd a5,   104(sp)
+#     sd a6,   112(sp)
+#     sd a7,   120(sp)
+#     sd s2,   128(sp)
+#     sd s3,   136(sp)
+#     sd s4,   144(sp)
+#     sd s5,   152(sp)
+#     sd s6,   160(sp)
+#     sd s7,   168(sp)
+#     sd s8,   176(sp)
+#     sd s9,   184(sp)
+#     sd s10,  192(sp)
+#     sd s11,  200(sp)
+#     sd t3,   208(sp)
+#     sd t4,   216(sp)
+#     sd t5,   224(sp)
+#     sd t6,   232(sp)
+
+#     # Сохраняем исходный пользовательский sp (сейчас лежит в mscratch) во фрейм
+#     csrr t0, mscratch
+#     sd t0,   240(sp)
+
+#     # Передаём указатель на trap_frame_t в a0 и вызываем C-обработчик
+#     mv a0, sp
+#     jal ra, trap_handler
+
+#     # Восстанавливаем пользовательский sp в mscratch (на случай если он изменился)
+#     ld t0,   240(sp)
+#     csrw mscratch, t0
+
+#     # Восстанавливаем регистры общего назначения
+#     ld ra,   0(sp)
+#     ld gp,   8(sp)
+#     ld tp,   16(sp)
+#     ld t0,   24(sp)
+#     ld t1,   32(sp)
+#     ld t2,   40(sp)
+#     ld s0,   48(sp)
+#     ld s1,   56(sp)
+#     ld a0,   64(sp)
+#     ld a1,   72(sp)
+#     ld a2,   80(sp)
+#     ld a3,   88(sp)
+#     ld a4,   96(sp)
+#     ld a5,   104(sp)
+#     ld a6,   112(sp)
+#     ld a7,   120(sp)
+#     ld s2,   128(sp)
+#     ld s3,   136(sp)
+#     ld s4,   144(sp)
+#     ld s5,   152(sp)
+#     ld s6,   160(sp)
+#     ld s7,   168(sp)
+#     ld s8,   176(sp)
+#     ld s9,   184(sp)
+#     ld s10,  192(sp)
+#     ld s11,  200(sp)
+#     ld t3,   208(sp)
+#     ld t4,   216(sp)
+#     ld t5,   224(sp)
+#     ld t6,   232(sp)
+
+#     # Освобождаем фрейм на стеке ядра и возвращаем стек в mscratch, а U-sp в sp
+#     addi sp, sp, 256
+#     csrrw sp, mscratch, sp
+
+#     mret
+
 .align 4
 trap_vector:
     # Атомарно меняем местами sp (пользовательский) и mscratch (стек ядра)
@@ -74,11 +163,16 @@ trap_vector:
     csrr t0, mscratch
     sd t0,   240(sp)
 
-    # Передаём указатель на trap_frame_t в a0 и вызываем C-обработчик
+    # Передаём текущий trap_frame_t* в a0; C-обработчик вернёт trap_frame_t* следующего потока
     mv a0, sp
     jal ra, trap_handler
+    mv sp, a0
 
-    # Восстанавливаем пользовательский sp в mscratch (на случай если он изменился)
+    # # Запоминаем вершину стека ядра для следующего входа в trap_vector
+    # addi t0, sp, 256
+    # csrw mscratch, t0
+
+    # Загружаем пользовательский sp выбранного потока в mscratch для финального обмена
     ld t0,   240(sp)
     csrw mscratch, t0
 
@@ -114,11 +208,13 @@ trap_vector:
     ld t5,   224(sp)
     ld t6,   232(sp)
 
-    # Освобождаем фрейм на стеке ядра и возвращаем стек в mscratch, а U-sp в sp
+    # Освобождаем фрейм на стеке ядра и возвращаем U-sp в sp, а стек ядра в mscratch
     addi sp, sp, 256
     csrrw sp, mscratch, sp
 
     mret
+
+
 
 # ============================================================================
 # ОПУСКАНИЕ В USER MODE: void enter_user_mode(uintptr_t entry, uintptr_t user_sp)
