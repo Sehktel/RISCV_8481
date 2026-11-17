@@ -5,6 +5,6 @@ useDefault = true
   description = "curl -u/--user с переменными окружения CI — не секрет"
   regexTarget = "line"
   regexes = [
-    '''(?i)(?:--user|-u)\s+"[^"]*:(\$\{[A-Za-z_]+\}|\$[A-Za-z_]+)"''',
-    '''(?i)(?:--user|-u)\s+[^:\s"]+:(\$\{[A-Za-z_]+\}|\$[A-Za-z_]+)''',
+    '''(?i)(?:--user|-u)\s+"[^"]*:\\?(\$\{[A-Za-z_]+\}|\$[A-Za-z_]+)"''',
+    '''(?i)(?:--user|-u)\s+[^:\s"]+:\\?(\$\{[A-Za-z_]+\}|\$[A-Za-z_]+)''',
   ]
