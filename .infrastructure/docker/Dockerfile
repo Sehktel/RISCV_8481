@@ -47,6 +47,12 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     # Очистка кэша apt для уменьшения размера Docker-образа
     && apt-get clean && rm -rf /var/lib/apt/lists/*
 
+ARG GITLEAKS_VERSION=8.30.1
+RUN apt-get update && apt-get install -y --no-install-recommends ca-certificates curl \
+    && curl -sSfL "https://github.com/gitleaks/gitleaks/releases/download/v${GITLEAKS_VERSION}/gitleaks_${GITLEAKS_VERSION}_linux_x64.tar.gz" \
+       | tar -xz -C /usr/local/bin gitleaks \
+    && chmod +x /usr/local/bin/gitleaks \
+    && apt-get clean && rm -rf /var/lib/apt/lists/*
 # Создаем рабочую директорию внутри контейнера
 WORKDIR /workspace
 

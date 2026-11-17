@@ -18,6 +18,9 @@ jobs:
           git config --global --add safe.directory "$(pwd)"
           git clone --depth 1 --branch "${GITHUB_REF_NAME}" "http://oauth2:${GITHUB_TOKEN}@forgejo:3000/${GITHUB_REPOSITORY}.git" .
 
+      - name: Secret Scanning Gate (Gitleaks)
+        run: make secrets
+
       - name: Code Style Gate (clang-format)
         run: make style
 
@@ -26,6 +29,7 @@ jobs:
 
       - name: Advanced SAST - CERT & Bugprone (Clang-Tidy)
         run: make tidy
+
 
       - name: Cross-Compile Kernel (RV64GC)
         run: |

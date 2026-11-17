@@ -27,10 +27,20 @@ DOCKER_RUN = $(DOCKER_BIN) run --rm \
 	-w /workspace \
 	riscv_os_devsecops:latest
 endif
+GITLEAKS_CONFIG = --source . --config .gitleaks.toml
+GITLEAKS_ARGS = --source . --config .gitleaks.toml --platform gitea --verbose --redact
 
-.PHONY: all build style sast format clean clear \
-        docker-build docker-clear docker-format docker-style docker-sast \
-        run debug gdb tidy docker-tidy
+.PHONY: all \
+		clean clear docker-clear\
+		build       docker-build  \
+		format      docker-format \
+		style       docker-style \
+		tidy        docker-tidy \
+		sast        docker-sast \
+		secrets-staged \
+		secrets     docker-secrets \
+		docs        docker-docs
+		run debug gdb
 
 # Базовый конвейер: чистая сборка в контейнере и запуск в QEMU
 all: docker-clear build run
@@ -89,7 +99,8 @@ docker-sast: sast
 docker-format: format
 docker-clear: clean
 docker-tidy: tidy
-
+docker-secret: secret
+docker-docs: docs
 
 # ==============================================================================
 # 3. ГЕНЕРАЦИЯ ДОКУМЕНТАЦИИ
@@ -100,6 +111,14 @@ docs:
 	@mkdir -p docs/generated
 	$(DOCKER_RUN) doxygen docs/Doxyfile
 	@echo "Документация и Call-графы сгенерированы в папке: docs/generated/html/index.html"
+
+## Аудит всей истории Git на наличие секретов (для CI)
+secrets:
+	$(DOCKER_RUN) sh -c "HOME=/tmp git config --global --add safe.directory '*' && HOME=/tmp gitleaks detect $(GITLEAKS_CONFIG) --platform gitea --verbose --redact"
+
+## Аудит только подготовленных к коммиту изменений (для pre-commit хука)
+secrets-staged:
+	$(DOCKER_RUN) sh -c "HOME=/tmp git config --global --add safe.directory '*' && HOME=/tmp gitleaks protect --staged $(GITLEAKS_CONFIG) --verbose --redact"
 
 # ==============================================================================
 # 4. ЭМУЛЯЦИЯ И ОТЛАДКА НА ХОСТЕ (QEMU / GDB)
