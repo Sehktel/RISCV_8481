@@ -49,6 +49,8 @@ typedef _Bool bool;
 #define TIMER_FREQ 10000000ULL
 
 // NOLINTBEGIN(bugprone-reserved-identifier)
+extern char _text_start[];
+extern char _text_end[];
 extern char _heap_start[];
 extern char _heap_end[];
 // NOLINTEND(bugprone-reserved-identifier)
@@ -165,6 +167,20 @@ typedef struct {
         __tmp;                                                                                                         \
     })
 
+// Коды исключений (mcause при старшем бите = 0)
+#define CAUSE_INSTRUCTION_ACCESS_FAULT 1ULL
+#define CAUSE_ILLEGAL_INSTRUCTION 2ULL
+#define CAUSE_LOAD_ACCESS_FAULT 5ULL
+#define CAUSE_STORE_ACCESS_FAULT 7ULL
+#define CAUSE_ECALL_FROM_UMODE 8ULL
+#define CAUSE_ECALL_FROM_MMODE 11ULL
+
+// Флаги конфигурации PMP (биты: R=0, W=1, X=2, A[4:3]=01 для TOR)
+#define PMP_R (1ULL << 0)
+#define PMP_W (1ULL << 1)
+#define PMP_X (1ULL << 2)
+#define PMP_TOR (1ULL << 3)
+
 static task_t tasks[MAX_TASKS];
 static int current_task_idx = -1;
 static int scheduler_active = 0;
@@ -196,3 +212,6 @@ void run_scheduler_demo(void);
 void enter_user_mode(uintptr_t entry, uintptr_t user_sp);
 void exit_user_mode_return(void);
 void run_user_mode_demo(void);
+
+void pmp_configure_user(uintptr_t ustack_base, uintptr_t ustack_top);
+void run_pmp_violation_demo(void);

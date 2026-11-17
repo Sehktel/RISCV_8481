@@ -125,35 +125,35 @@ void heap_test(void) {
     kprintf("Попытка освободить указатель вне кучи (например, из стека/кода):\n");
     kfree((void*)0x80000010);
 }
-// void heap_test(void) {
-//     kprintf("=== 1. Тест выделения и коалесценции ===\n");
-//     void* p1 = kmalloc(64);
-//     void* p2 = kmalloc(128);
-//     void* p3 = kmalloc(256);
-//     heap_dump();
 
-//     kprintf("\n--- Освобождаем средний блок (p2) ---\n");
-//     kfree(p2);
-//     heap_dump();
+/**
+ * @brief Настраивает аппаратную защиту памяти PMP (режим TOR) для процесса U-mode.
+ *
+ * Разрешает U-mode:
+ *   - R+X для кода и констант [_text_start, _text_end)
+ *   - R+W (без X, аппаратный NX) для собственного стека [ustack_base, ustack_top)
+ * Запрещает прямой доступ к памяти ядра (.data, .bss, куча) и MMIO (UART0, CLINT).
+ */
+void pmp_configure_user(uintptr_t ustack_base, uintptr_t ustack_top) {
+    uintptr_t text_start = (uintptr_t)_text_start;
+    uintptr_t text_end = (uintptr_t)_text_end;
 
-//     kprintf("\n--- Освобождаем p1 (слияние вперёд с p2) ---\n");
-//     kfree(p1);
-//     heap_dump();
+    write_csr(pmpaddr0, text_start >> 2);
+    write_csr(pmpaddr1, text_end >> 2);
+    write_csr(pmpaddr2, ustack_base >> 2);
+    write_csr(pmpaddr3, ustack_top >> 2);
 
-//     kprintf("\n--- Освобождаем p3 (слияние назад, куча должна стать единой) ---\n");
-//     kfree(p3);
-//     heap_dump();
+    // Формируем 64-битный pmpcfg0 (по 1 байту на запись pmp0..pmp3):
+    // cfg0 = 0 (OFF, нижняя граница)
+    // cfg1 = PMP_TOR | PMP_R | PMP_X (код + rodata)
+    // cfg2 = PMP_TOR (запретная зона памяти ядра и чужих стеков)
+    // cfg3 = PMP_TOR | PMP_R | PMP_W (стек задачи, NX)
+    uint64_t cfg = ((PMP_TOR | PMP_R | PMP_X) << 8) | (PMP_TOR << 16) | ((PMP_TOR | PMP_R | PMP_W) << 24);
+    write_csr(pmpcfg0, cfg);
 
-//     kprintf("\n=== 2. Тест безопасности (Security Checks) ===\n");
-//     kprintf("Попытка Double-Free на p3:\n");
-//     kfree(p3);
-
-//     kprintf("Попытка освободить невыровненный указатель:\n");
-//     kfree((void*)0x80005003);
-
-//     kprintf("Попытка освободить указатель вне кучи (например, из стека/кода):\n");
-//     kfree((void*)0x80000010);
-// }
+    // Сбрасываем кэш трансляций после обновления правил PMP
+    asm volatile("sfence.vma zero, zero" ::: "memory");
+}
 
 /**
  * @brief Выделяет блок памяти размером @p size байт (first-fit поиск).
@@ -769,7 +769,11 @@ static trap_frame_t* schedule_next(trap_frame_t* current_frame) {
     }
 
     for (int offset = 1; offset <= MAX_TASKS; offset++) {
+
         int next_idx = (current_task_idx + offset) % MAX_TASKS;
+
+        pmp_configure_user((uintptr_t)tasks[next_idx].ustack, (uintptr_t)(tasks[next_idx].ustack + 4096));
+
         if (tasks[next_idx].state == TASK_READY) {
             current_task_idx = next_idx;
             tasks[next_idx].state = TASK_RUNNING;
@@ -849,6 +853,28 @@ trap_frame_t* trap_handler(trap_frame_t* frame) {
         write_csr(mepc, mepc + 4);
         return frame;
     }
+    if (mcause == CAUSE_INSTRUCTION_ACCESS_FAULT || mcause == CAUSE_LOAD_ACCESS_FAULT ||
+        mcause == CAUSE_STORE_ACCESS_FAULT) {
+        const char* fault_type = "Instruction Access Fault (NX / Exec запрещён)";
+        if (mcause == CAUSE_LOAD_ACCESS_FAULT) {
+            fault_type = "Load Access Fault (Чтение запрещённой области)";
+        } else if (mcause == CAUSE_STORE_ACCESS_FAULT) {
+            fault_type = "Store/AMO Access Fault (Запись в защищённую область / MMIO)";
+        }
+
+        kprintf("\n[SECURITY] PMP Violation! %s\n", fault_type);
+        kprintf("[SECURITY] mcause=%lu | mepc=0x%lx | mtval=0x%lx — процесс принудительно завершён!\n", mcause, mepc,
+                mtval);
+
+        // Аварийно завершаем нарушивший U-mode процесс и возвращаемся в M-mode Shell
+        frame->a0 = (uint64_t)-1;
+        frame->sp = (uintptr_t)frame + sizeof(trap_frame_t);
+        write_csr(mepc, (uint64_t)exit_user_mode_return);
+        uint64_t mstatus = read_csr(mstatus);
+        mstatus |= MSTATUS_MPP_MASK;
+        write_csr(mstatus, mstatus);
+        return frame;
+    }
 
     kprintf("\n[PANIC] Необработанное исключение: mcause=%lu, mepc=0x%lx, mtval=0x%lx\n", mcause, mepc, mtval);
     for (;;) {
@@ -870,8 +896,11 @@ void run_scheduler_demo(void) {
         return;
     }
 
-    write_csr(pmpaddr0, (~0ULL) >> 10);
-    write_csr(pmpcfg0, 0x0FULL);
+    // Этап 10: сужаем границы
+    pmp_configure_user((uintptr_t)tasks[0].ustack, tasks[0].frame->sp);
+
+    // write_csr(pmpaddr0, (~0ULL) >> 10);
+    // write_csr(pmpcfg0, 0x0FULL);
 
     current_task_idx = 0;
     tasks[0].state = TASK_RUNNING;
@@ -894,76 +923,33 @@ void run_scheduler_demo(void) {
         kfree(tasks[i].ustack);
     }
 }
+/**
+ * @brief Злонамеренная задача U-mode: пытается напрямую писать в UART0 в обход syscall.
+ */
+static void rogue_uart_task(void) {
+    sys_call(SYS_PRINT, (uint64_t) "[U-MODE | ROGUE] Пытаюсь напрямую записать символ в UART0 (0x10000000)...\n", 0);
+    *UART0_THR = 'X'; // Должно вызвать Store Access Fault (mcause = 7)!
+    sys_call(SYS_PRINT, (uint64_t) "[U-MODE | ROGUE] ОШИБКА: запись в UART0 прошла без блокировки!\n", 0);
+    sys_call(SYS_EXIT, 0, 0);
+}
 
-// /**
-//  * @brief Центральный диспетчер синхронных исключений и прерываний ядра.
-//  */
-// void trap_handler(trap_frame_t* frame) {
-//     uint64_t mcause = read_csr(mcause);
-//     uint64_t mepc = read_csr(mepc);
-//     uint64_t mtval = read_csr(mtval);
+void run_pmp_violation_demo(void) {
+    const size_t user_stack_size = 4096;
+    uint8_t* user_stack = (uint8_t*)kmalloc(user_stack_size);
+    if (user_stack == NULL) {
+        kprintf("[ERROR] Не удалось выделить память под стек U-mode\n");
+        return;
+    }
 
-//     // Проверяем старший бит: 1 = аппаратное прерывание, 0 = синхронное исключение
-//     if ((mcause >> 63) != 0) {
-//         kprintf("[TRAP] Аппаратное прерывание: mcause=0x%lx, mepc=0x%lx\n", mcause, mepc);
-//         return;
-//     }
+    uintptr_t user_sp = (uintptr_t)(user_stack + user_stack_size);
+    pmp_configure_user((uintptr_t)user_stack, user_sp);
 
-//     if (mcause == CAUSE_ECALL_FROM_UMODE) {
-//         uint64_t sys_num = frame->a7;
+    kprintf("[KERNEL] Запускаем задачу-нарушитель U-mode со строгим PMP...\n");
+    enter_user_mode((uintptr_t)rogue_uart_task, user_sp);
 
-//         switch (sys_num) {
-//         case SYS_PRINT: {
-//             const char* str = (const char*)frame->a0;
-//             if (str != NULL) {
-//                 print(str);
-//             }
-//             frame->a0 = 0;
-//             break;
-//         }
-//         case SYS_GET_TICKS: {
-//             frame->a0 = get_ticks();
-//             break;
-//         }
-//         case SYS_EXIT: {
-//             uint64_t exit_code = frame->a0;
-//             kprintf("[KERNEL] Процесс U-mode завершился через SYS_EXIT (код: %lu)\n", exit_code);
-//             // Фрейм enter_user_mode находится ровно над 256-байтным trap_frame_t
-//             frame->sp = (uintptr_t)frame + sizeof(trap_frame_t);
-//             write_csr(mepc, (uint64_t)exit_user_mode_return);
-//             uint64_t mstatus = read_csr(mstatus);
-//             mstatus |= MSTATUS_MPP_MASK; // Возвращаемся обратно в Machine Mode (MPP = 11)
-//             write_csr(mstatus, mstatus);
-//             return;
-//         }
-//         // case SYS_EXIT: {
-//         //     uint64_t exit_code = frame->a0;
-//         //     kprintf("[KERNEL] Процесс U-mode завершился через SYS_EXIT (код: %lu)\n", exit_code);
-//         //     // Перенаправляем mret в точку возврата ядра exit_user_mode_return
-//         //     uint64_t kernel_sp = read_csr(mscratch);
-//         //     frame->sp = kernel_sp;
-//         //     write_csr(mepc, (uint64_t)exit_user_mode_return);
-//         //     uint64_t mstatus = read_csr(mstatus);
-//         //     mstatus |= MSTATUS_MPP_MASK; // Возвращаемся обратно в Machine Mode (MPP = 11)
-//         //     write_csr(mstatus, mstatus);
-//         //     return;
-//         // }
-//         default:
-//             kprintf("[SECURITY] Неизвестный syscall %lu из U-mode (mepc=0x%lx)\n", sys_num, mepc);
-//             frame->a0 = (uint64_t)-1;
-//             break;
-//         }
-
-//         // Инструкция ecall занимает 4 байта — сдвигаем mepc на следующую инструкцию
-//         write_csr(mepc, mepc + 4);
-//         return;
-//     }
-
-//     kprintf("\n[PANIC] Необработанное исключение: mcause=%lu, mepc=0x%lx, mtval=0x%lx\n", mcause, mepc, mtval);
-//     for (;;) {
-//         asm volatile("wfi");
-//     }
-// }
+    kprintf("[KERNEL] Ядро устояло, управление возвращено в M-mode Shell!\n");
+    kfree(user_stack);
+}
 
 /**
  * @brief Выделяет пользовательский стек в куче и запускает user_task в U-mode.
@@ -977,11 +963,12 @@ void run_user_mode_demo(void) {
     }
 
     // Временное открывающее правило PMP TOR на всё пространство (на Этапе 10 сузим до границ)
-    write_csr(pmpaddr0, (~0ULL) >> 10);
-    write_csr(pmpcfg0, 0x0FULL);
+    // write_csr(pmpaddr0, (~0ULL) >> 10);
+    // write_csr(pmpcfg0, 0x0FULL);
 
     uintptr_t user_sp = (uintptr_t)(user_stack + user_stack_size);
     kprintf("[KERNEL] Опускаем процессор в U-mode (entry=0x%lx, user_sp=0x%lx)...\n", (uintptr_t)user_task, user_sp);
+    pmp_configure_user((uintptr_t)user_stack, user_sp);
 
     enter_user_mode((uintptr_t)user_task, user_sp);
 
@@ -1004,6 +991,7 @@ void run_user_mode_demo(void) {
  * | memtest       | Выполнить тест аллокатора памяти                  |
  * | usermode      | Запустить задачу в User Mode (U-mode + ecall)     |
  * | sched         | Проверка вытесняющей многозадачности              |
+ * | pmptest       | Проверка аппаратная защита PMP                    |
  * | exit, quit    | Завершение работы (poweroff)                      |
  *
  * Пустая строка молча игнорируется; неизвестная команда печатает ошибку.
@@ -1025,6 +1013,7 @@ void execute_command(const char* cmd) {
         kprintf("  memtest      - Выполнить тест аллокатора памяти\n");
         kprintf("  usermode     - Запустить задачу в User Mode (U-mode + ecall)\n");
         kprintf("  shed         - Проверка вытесняющей многозадачности\n");
+        kprintf("  pmptest      - Проверка аппаратной защита PMP");
         kprintf("  exit, quit   - Завершение работы программы\n");
     } else if (mystrcmp(cmd, "info") == 0) {
         uint64_t sp_val;
@@ -1050,6 +1039,8 @@ void execute_command(const char* cmd) {
         run_user_mode_demo();
     } else if (mystrcmp(cmd, "shed") == 0) {
         run_scheduler_demo();
+    } else if (mystrcmp(cmd, "pmptest") == 0) {
+        run_pmp_violation_demo();
     } else if (mystrlen(cmd) > 0) {
         kprintf("Ошибка: неизвестная команда '%s'. Введите 'help'\n", cmd);
     }

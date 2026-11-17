@@ -16,11 +16,19 @@ PHDRS
 SECTIONS
 {
   . = ORIGIN(ram);
+  _text_start = .;
 
   .text : {
     *(.text.init)
     *(.text .text.*)
   } > ram :text
+
+  .rodata : {
+    *(.rodata .rodata.*)
+    . = ALIGN(4);
+    _text_end = .;
+  } > ram :text
+
 
   /* .rodata тоже можно держать в text-сегменте: он R-X, а константам
      исполнение не мешает. Хотите строже — вынесите в отдельный
