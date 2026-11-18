@@ -92,3 +92,16 @@ jobs:
               -X DELETE \
               "http://forgejo:3000/api/packages/${OWNER}/generic/kernel/${v}"
           done
+
+
+      - name: ChatOps Alert on Failure (Mattermost)
+        if: failure()
+        env:
+          WEBHOOK_URL: ${{ secrets.MATTERMOST_WEBHOOK_URL }}
+        run: |
+          curl -s -X POST -H 'Content-Type: application/json' \
+            -d "{
+              \"username\": \"RISC-V DevSecOps Bot\",
+              \"text\": \"#### :rotating_light: Провал CI/CD гейта безопасности!\n| Параметр | Значение |\n| :--- | :--- |\n| **Репозиторий** | \`${GITHUB_REPOSITORY}\` |\n| **Ветка / Коммит** | \`${GITHUB_REF_NAME}\` (\`${GITHUB_SHA}\`) |\n| **Инициатор** | @${GITHUB_ACTOR} |\n| **Лог сборки** | [Открыть в Forgejo](http://localhost:3000/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_NUMBER}) |\"
+            }" \
+            "${WEBHOOK_URL}"
