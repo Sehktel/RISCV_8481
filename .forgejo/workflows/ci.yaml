@@ -98,29 +98,31 @@ jobs:
         env:
           WEBHOOK_URL: ${{ secrets.MATTERMOST_WEBHOOK_URL }}
         run: |
-          if [ -z "${WEBHOOK_URL}" ]; then
+          CLEAN_URL=$(printf '%s' "${WEBHOOK_URL}" | tr -d '\r\n ')
+          if [ -z "${CLEAN_URL}" ]; then
             echo "MATTERMOST_WEBHOOK_URL не задан, пропускаем уведомление."
             exit 0
           fi
-          curl -s -X POST -H 'Content-Type: application/json' \
+          curl -f -s -S -X POST -H 'Content-Type: application/json' \
             -d "{
               \"username\": \"RISC-V DevSecOps Bot\",
               \"text\": \"#### :white_check_mark: Сборка и все гейты безопасности пройдены!\n| Параметр | Значение |\n| :--- | :--- |\n| **Репозиторий** | \`${GITHUB_REPOSITORY}\` |\n| **Ветка / Коммит** | \`${GITHUB_REF_NAME}\` (\`${GITHUB_SHA}\`) |\n| **Инициатор** | @${GITHUB_ACTOR} |\n| **Пайплайн** | [Открыть в Forgejo](http://localhost:3000/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_NUMBER}) |\"
             }" \
-            "${WEBHOOK_URL}"
+            "${CLEAN_URL}"
 
       - name: ChatOps Alert on Failure (Mattermost)
         if: failure()
         env:
           WEBHOOK_URL: ${{ secrets.MATTERMOST_WEBHOOK_URL }}
         run: |
-          if [ -z "${WEBHOOK_URL}" ]; then
+          CLEAN_URL=$(printf '%s' "${WEBHOOK_URL}" | tr -d '\r\n ')
+          if [ -z "${CLEAN_URL}" ]; then
             echo "MATTERMOST_WEBHOOK_URL не задан, пропускаем уведомление."
             exit 0
           fi
-          curl -s -X POST -H 'Content-Type: application/json' \
+          curl -f -s -S -X POST -H 'Content-Type: application/json' \
             -d "{
               \"username\": \"RISC-V DevSecOps Bot\",
               \"text\": \"#### :rotating_light: Провал CI/CD гейта безопасности!\n| Параметр | Значение |\n| :--- | :--- |\n| **Репозиторий** | \`${GITHUB_REPOSITORY}\` |\n| **Ветка / Коммит** | \`${GITHUB_REF_NAME}\` (\`${GITHUB_SHA}\`) |\n| **Инициатор** | @${GITHUB_ACTOR} |\n| **Лог ошибки** | [Открыть в Forgejo](http://localhost:3000/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_NUMBER}) |\"
             }" \
-            "${WEBHOOK_URL}"
+            "${CLEAN_URL}"
