@@ -19,6 +19,8 @@ services:
       - FORGEJO__mailer__PROTOCOL=smtp
       - FORGEJO__mailer__SMTP_ADDR=${SMTP_HOST}
       - FORGEJO__mailer__SMTP_PORT=${SMTP_PORT}
+      - FORGEJO__webhook__ALLOWED_HOST_LIST=mattermost
+
     ports:
       - "127.0.0.1:3000:3000"
       - "127.0.0.1:2222:22"
