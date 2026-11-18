@@ -9,8 +9,8 @@ services:
       - GITEA__SERVER__ROOT_URL=http://localhost:3000
       - GITEA__SECURITY__INSTALL_LOCK=true
     ports:
-      - "3000:3000"
-      - "2222:2222"
+      - "127.0.0.1:3000:3000"
+      - "127.0.0.1:2222:2222"
     volumes:
       - gitea_data:/data
     restart: always
@@ -37,7 +37,7 @@ services:
     image: mattermost/mattermost-team-edition:latest
     container_name: devsecops_chat
     ports:
-      - "8065:8065"
+      - "127.0.0.1:8065:8065"
     volumes:
       - mattermost_data:/mattermost/data
       - mattermost_config:/mattermost/config
@@ -50,7 +50,7 @@ services:
     image: vimagick/mantisbt:latest
     container_name: devsecops_tracker
     ports:
-      - "8080:80"
+      - "127.0.0.1:8080:80"
     environment:
       - MANTIS_DB_NAME=mantis
       - MANTIS_DB_USER=mantis
@@ -64,7 +64,7 @@ services:
     image: grafana/loki:latest
     container_name: devsecops_logs
     ports:
-      - "3100:3100"
+      - "127.0.0.1:3100:3100"
     command: -config.file=/etc/loki/local-config.yaml
     restart: always
     networks:
@@ -74,7 +74,7 @@ services:
     image: grafana/grafana:latest
     container_name: devsecops_dashboards
     ports:
-      - "3001:3000"
+      - "127.0.0.1:3001:3000"
     environment:
       - GF_SECURITY_ADMIN_PASSWORD=admin
     restart: always
@@ -90,4 +90,3 @@ volumes:
   gitea_runner_data:
   mattermost_data:
   mattermost_config:
-  mattermost_data:

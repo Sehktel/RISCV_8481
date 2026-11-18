@@ -68,3 +68,5 @@ tree.txt
 .infrastructure/kubeconfig.yaml
 
 docs/generated/
+
+.env
