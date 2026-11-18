@@ -77,8 +77,8 @@ services:
       - FORGEJO__server__HTTP_PORT=3000
       - FORGEJO__actions__ENABLED=true
     ports:
-      - "3000:3000"
-      - "2222:22"
+      - "127.0.0.1:3000:3000"
+      - "127.0.0.1:2222:22"
     volumes:
       - forgejo_data:/data
       - /etc/timezone:/etc/timezone:ro
