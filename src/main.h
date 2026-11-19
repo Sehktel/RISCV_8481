@@ -71,10 +71,6 @@ typedef struct block_header {
 // Гарантируем на этапе компиляции, что размер заголовка кратен 16 (32 байта)
 _Static_assert(sizeof(block_header_t) % 16 == 0, "block_header_t must be 16-byte aligned");
 
-static block_header_t* heap_head = NULL;
-static uintptr_t heap_bounds_start = 0;
-static uintptr_t heap_bounds_end = 0;
-
 // Яд для детекции use-after-free: свободная память обязана содержать этот байт
 #define HEAP_POISON_BYTE 0xA5
 // Сколько байтов payload проверяем на яд при каждом выделении
@@ -181,12 +177,6 @@ typedef struct {
 #define PMP_X (1ULL << 2)
 #define PMP_TOR (1ULL << 3)
 
-static task_t tasks[MAX_TASKS];
-static int current_task_idx = -1;
-static int scheduler_active = 0;
-static int timer_ticks_count = 0;
-static uintptr_t shell_return_sp = 0;
-
 void heap_init(void);
 void heap_dump(void);
 void heap_test(void);
@@ -194,8 +184,8 @@ void* kmalloc(size_t size);
 void kfree(void* ptr);
 void enable_interrupts(void);
 char uart_getc(void);
-int mystrcmp(const char* s1, const char* s2);
-int mystrlen(const char* s);
+int kstrcmp(const char* s1, const char* s2);
+int kstrlen(const char* s);
 void uart_putc(char c);
 void print(const char* str);
 void poweroff(void);

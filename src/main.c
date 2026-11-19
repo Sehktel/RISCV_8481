@@ -12,6 +12,17 @@
 
 #include <stdarg.h>
 
+
+static task_t tasks[MAX_TASKS];
+static int current_task_idx = -1;
+static int scheduler_active = 0;
+static int timer_ticks_count = 0;
+static uintptr_t shell_return_sp = 0;
+
+static block_header_t* heap_head = NULL;
+static uintptr_t heap_bounds_start = 0;
+static uintptr_t heap_bounds_end = 0;
+
 /**
  * @brief Инициализирует кучу: создаёт один большой свободный блок.
  *
@@ -387,7 +398,7 @@ char uart_getc(void) {
  * @note Досрочный выход происходит, когда *s1 == 0 или символы различны,
  *       поэтому корректно сравнивает строки разной длины.
  */
-int mystrcmp(const char* s1, const char* s2) {
+int kstrcmp(const char* s1, const char* s2) {
     while (*s1 && (*s1 == *s2)) {
         s1++;
         s2++;
@@ -400,7 +411,7 @@ int mystrcmp(const char* s1, const char* s2) {
  * @param s Указатель на строку.
  * @return Количество символов в строке без учёта завершающего '\0'.
  */
-int mystrlen(const char* s) {
+int kstrlen(const char* s) {
     int len = 0;
     while (s[len])
         len++;
@@ -1003,7 +1014,7 @@ void execute_command(const char* cmd) {
     // int test_array[5];
     // test_array[10] = 42;
 
-    if (mystrcmp(cmd, "help") == 0) {
+    if (kstrcmp(cmd, "help") == 0) {
         kprintf("Доступные команды:\n");
         kprintf("  help         - Вывод этого списка команд\n");
         kprintf("  info         - Вывод системной информации ядра\n");
@@ -1013,9 +1024,9 @@ void execute_command(const char* cmd) {
         kprintf("  memtest      - Выполнить тест аллокатора памяти\n");
         kprintf("  usermode     - Запустить задачу в User Mode (U-mode + ecall)\n");
         kprintf("  shed         - Проверка вытесняющей многозадачности\n");
-        kprintf("  pmptest      - Проверка аппаратной защита PMP");
+        kprintf("  pmptest      - Проверка аппаратной защита PMP\n");
         kprintf("  exit, quit   - Завершение работы программы\n");
-    } else if (mystrcmp(cmd, "info") == 0) {
+    } else if (kstrcmp(cmd, "info") == 0) {
         uint64_t sp_val;
         // Читаем текущий указатель стека sp напрямую из регистра процессора
         asm volatile("mv %0, sp" : "=r"(sp_val));
@@ -1024,24 +1035,24 @@ void execute_command(const char* cmd) {
         kprintf("Архитектура: RV%dGC (64-bit)\n", 64);
         kprintf("Базовый адрес UART0: 0x%x\n", (uint64_t)UART0_BASE);
         kprintf("Текущий указатель стека (SP): 0x%x\n", sp_val);
-    } else if (mystrcmp(cmd, "clear") == 0) {
+    } else if (kstrcmp(cmd, "clear") == 0) {
         kprintf("\033[H\033[2J");
-    } else if (mystrcmp(cmd, "exit") == 0 || mystrcmp(cmd, "quit") == 0) {
+    } else if (kstrcmp(cmd, "exit") == 0 || kstrcmp(cmd, "quit") == 0) {
         kprintf("Завершение работы системы...\n");
         poweroff();
-    } else if (mystrcmp(cmd, "uptime") == 0 || mystrcmp(cmd, "time") == 0) {
+    } else if (kstrcmp(cmd, "uptime") == 0 || kstrcmp(cmd, "time") == 0) {
         print_uptime();
-    } else if (mystrcmp(cmd, "mem") == 0) {
+    } else if (kstrcmp(cmd, "mem") == 0) {
         heap_dump();
-    } else if (mystrcmp(cmd, "memtest") == 0) {
+    } else if (kstrcmp(cmd, "memtest") == 0) {
         heap_test();
-    } else if (mystrcmp(cmd, "usermode") == 0) {
+    } else if (kstrcmp(cmd, "usermode") == 0) {
         run_user_mode_demo();
-    } else if (mystrcmp(cmd, "shed") == 0) {
+    } else if (kstrcmp(cmd, "shed") == 0) {
         run_scheduler_demo();
-    } else if (mystrcmp(cmd, "pmptest") == 0) {
+    } else if (kstrcmp(cmd, "pmptest") == 0) {
         run_pmp_violation_demo();
-    } else if (mystrlen(cmd) > 0) {
+    } else if (kstrlen(cmd) > 0) {
         kprintf("Ошибка: неизвестная команда '%s'. Введите 'help'\n", cmd);
     }
 }
@@ -1070,35 +1081,32 @@ void kmain(void) {
     // Включаем архитектурные прерывания процессора
     enable_interrupts();
 
-    // Выводим приветствие
-    //    print("Hello World!\n");
-
-    print("\n--- RISCV Микроядро: Shell загружен ---\n");
-    print("sh> ");
+    kprintf("\n--- RISCV Микроядро: Shell загружен ---\n");
+    kprintf("sh> ");
 
     char buffer[BUFFER_SIZE];
     int index = 0;
 
     // Главный цикл ядра ОС
-    while (1) {
+    while (true) { //while (true) более правильно чем while(1)
 
         char c = uart_getc();
 
         // Обработка клавиши Enter (\r или \n в зависимости от настроек терминала хоста)
         if (c == '\r' || c == '\n') {
             buffer[index] = '\0'; // Замыкаем строку в буфере
-            print("\n");          // Перенос строки на экране
+            kprintf("\n");          // Перенос строки на экране
 
             execute_command(buffer);
 
             index = 0; // Сбрасываем индекс для новой команды
-            print("sh> ");
+            kprintf("sh> ");
         }
         // Обработка клавиши Backspace (ASCII 8 или 127)
         else if (c == 8 || c == 127) {
             if (index > 0) {
                 index--;
-                print("\b \b"); // Сдвигаем курсор назад, стираем пробелом, возвращаем курсор
+                kprintf("\b \b"); // Сдвигаем курсор назад, стираем пробелом, возвращаем курсор
             }
         }
         // Обычные печатаемые символы
