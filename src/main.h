@@ -2,21 +2,12 @@
 #define MAIN_H
 
 #include "./include/types.h"
-
 #include "./include/mm.h"
 #include "./include/console.h"
 
 // Регистры управления питанием QEMU (SiFive Test Finisher)
 #define SYSCON_TEST_ADDR 0x100000
 #define FINISHER_PASS 0x5555
-
-// // Адрес UART0 на плате QEMU virt
-// #define UART0_BASE 0x10000000UL
-
-// /// Регистр данных UART (запись — transmit, чтение — receive)
-// #define UART0_THR ((volatile unsigned char*)(UART0_BASE + 0x00))
-// /// Регистр статуса линии (бит 0 — Data Ready, бит 5 — THRE)
-// #define UART0_LSR ((volatile unsigned char*)(UART0_BASE + 0x05))
 
 // Константы битов прерываний RISC-V
 #define MSTATUS_MIE (1ULL << 3) // Глобальное разрешение прерываний в Machine-mode
@@ -36,11 +27,6 @@ extern char _text_start[];
 extern char _text_end[];
 extern char _ram_end[];
 // NOLINTEND(bugprone-reserved-identifier)
-
-// --> types.h
-//#define ALIGN16(x) (((x) + 15) & ~((size_t)15))
-
-
 
 // Константы битов прерываний и привилегий RISC-V
 #define MSTATUS_MIE (1ULL << 3)       // Глобальное разрешение прерываний в Machine-mode
@@ -143,26 +129,17 @@ typedef struct {
 #define PMP_X (1ULL << 2)
 #define PMP_TOR (1ULL << 3)
 
-// void heap_init(void);
-// void heap_dump(void);
-// void heap_test(void);
-// void* kmalloc(size_t size);
-// void kfree(void* ptr);
 void enable_interrupts(void);
-// char uart_getc(void);
+
 int kstrcmp(const char* s1, const char* s2);
 int kstrlen(const char* s);
-// void uart_putc(char c);
-// void print(const char* str);
-void poweroff(void);
-// static void print_number(uint64_t num, int base, int min_width);
 
-// void kprintf(const char* fmt, ...);
+void poweroff(void);
+
 uint64_t get_ticks(void);
 void print_uptime(void);
 void execute_command(const char* cmd);
 
-// void trap_handler(trap_frame_t* frame);
 trap_frame_t* trap_handler(trap_frame_t* frame);
 
 void run_scheduler_demo(void);
