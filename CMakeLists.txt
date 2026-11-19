@@ -35,7 +35,9 @@ if(NOT SOURCES)
 endif()
 
 # Создаем исполняемый ELF-файл ядра (он скомпилируется в bin/kernel.elf)
-add_executable(kernel.elf ${SOURCES})
+add_executable(kernel.elf ${SOURCES}
+    src/lib/console.c
+    src/lib/string.c)
 
 # Настройки линкера для bare-metal с использованием вашего src/linker.ld
 target_link_options(kernel.elf PRIVATE

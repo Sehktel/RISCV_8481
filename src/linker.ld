@@ -23,18 +23,12 @@ SECTIONS
     *(.text .text.*)
   } > ram :text
 
+  /* .rodata тоже можно держать в text-сегменте: он R-X, а константам
+     исполнение не мешает. Хотите строже — вынесите в отдельный PT_LOAD FLAGS(4) (только R). */
   .rodata : {
     *(.rodata .rodata.*)
     . = ALIGN(4);
     _text_end = .;
-  } > ram :text
-
-
-  /* .rodata тоже можно держать в text-сегменте: он R-X, а константам
-     исполнение не мешает. Хотите строже — вынесите в отдельный
-     PT_LOAD FLAGS(4) (только R). */
-  .rodata : {
-    *(.rodata .rodata.*)
   } > ram :text
 
   .data : {
@@ -60,7 +54,7 @@ SECTIONS
   /* Куча: от вершины стека до конца RAM */
   .heap (NOLOAD) : ALIGN(16) {
     _heap_start = .;
-    . += ORIGIN(ram) + LENGTH(ram) - . - 0x200000; /* оставляем 2 МБ запаса */
-    _heap_end = .;
+    _heap_end = ORIGIN(ram) + LENGTH(ram) - 0x200000; /* оставляем 2 МБ запаса */
+    _ram_end = ORIGIN(ram) + LENGTH(ram);
   } > ram :data
 }

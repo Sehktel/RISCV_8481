@@ -16,5 +16,8 @@ set(CMAKE_TRY_COMPILE_TARGET_TYPE STATIC_LIBRARY)
 # Общие флаги архитектуры (для XuanTie C906 / Milk-V Duo)
 set(ARCH_FLAGS "-march=rv64gc -mabi=lp64d -mcmodel=medany")
 
-set(CMAKE_C_FLAGS   "${ARCH_FLAGS} -ffreestanding -Wall -Wextra -O0 -g" CACHE STRING "" FORCE)
+# -Werror=implicit-function-declaration
+# set(CMAKE_C_FLAGS   "${ARCH_FLAGS} -ffreestanding -Wall -Wextra -O0 -g" CACHE STRING "" FORCE)
+
+set(CMAKE_C_FLAGS   "${ARCH_FLAGS} -ffreestanding -Wall -Wextra -Werror=implicit-function-declaration -O0 -g" CACHE STRING "" FORCE)
 set(CMAKE_ASM_FLAGS "${ARCH_FLAGS} -x assembler-with-cpp -g" CACHE STRING "" FORCE)

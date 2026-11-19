@@ -1,43 +1,26 @@
+#ifndef MAIN_H
+#define MAIN_H
+
+#include "./include/types.h"
+
+#include "./include/mm.h"
+#include "./include/console.h"
+
 // Регистры управления питанием QEMU (SiFive Test Finisher)
 #define SYSCON_TEST_ADDR 0x100000
 #define FINISHER_PASS 0x5555
 
-// Адрес UART0 на плате QEMU virt
-#define UART0_BASE 0x10000000UL
+// // Адрес UART0 на плате QEMU virt
+// #define UART0_BASE 0x10000000UL
 
-/// Регистр данных UART (запись — transmit, чтение — receive)
-#define UART0_THR ((volatile unsigned char*)(UART0_BASE + 0x00))
-/// Регистр статуса линии (бит 0 — Data Ready, бит 5 — THRE)
-#define UART0_LSR ((volatile unsigned char*)(UART0_BASE + 0x05))
+// /// Регистр данных UART (запись — transmit, чтение — receive)
+// #define UART0_THR ((volatile unsigned char*)(UART0_BASE + 0x00))
+// /// Регистр статуса линии (бит 0 — Data Ready, бит 5 — THRE)
+// #define UART0_LSR ((volatile unsigned char*)(UART0_BASE + 0x05))
 
 // Константы битов прерываний RISC-V
 #define MSTATUS_MIE (1ULL << 3) // Глобальное разрешение прерываний в Machine-mode
 #define MIE_MTIE (1ULL << 7)    // Разрешение прерываний от машинного таймера
-
-/* ============================================================================
- * БАЗОВЫЕ ТИПЫ (RV64 / LP64 Bare-Metal)
- * ============================================================================ */
-typedef signed char int8_t;
-typedef unsigned char uint8_t;
-typedef signed short int16_t;
-typedef unsigned short uint16_t;
-typedef signed int int32_t;
-typedef unsigned int uint32_t;
-typedef signed long int64_t;
-typedef unsigned long uint64_t;
-
-typedef unsigned long size_t;
-typedef signed long ssize_t;
-typedef unsigned long uintptr_t;
-typedef signed long intptr_t;
-
-#ifndef NULL
-#define NULL ((void*)0)
-#endif
-
-typedef _Bool bool;
-#define true 1
-#define false 0
 
 #define clear_csr(reg, bit) ({ asm volatile("csrc " #reg ", %0" ::"r"(bit)); })
 #define write_csr(reg, val) ({ asm volatile("csrw " #reg ", %0" ::"r"(val)); })
@@ -51,30 +34,13 @@ typedef _Bool bool;
 // NOLINTBEGIN(bugprone-reserved-identifier)
 extern char _text_start[];
 extern char _text_end[];
-extern char _heap_start[];
-extern char _heap_end[];
+extern char _ram_end[];
 // NOLINTEND(bugprone-reserved-identifier)
 
-#define ALIGN16(x) (((x) + 15) & ~((size_t)15))
+// --> types.h
+//#define ALIGN16(x) (((x) + 15) & ~((size_t)15))
 
-// Магические константы для контроля целостности заголовка (64-бит)
-#define HEAP_MAGIC_ALLOC 0xDEADC0DE12345678ULL
-#define HEAP_MAGIC_FREE 0xFEE1DEAD87654321ULL
 
-typedef struct block_header {
-    uint64_t magic;            // 8 байт: страж целостности и статуса
-    size_t size;               // 8 байт: размер полезной нагрузки
-    struct block_header* next; // 8 байт: следующий блок
-    uint8_t is_free;           // 1 байт (+ 7 байт паддинга)
-} __attribute__((aligned(16))) block_header_t;
-
-// Гарантируем на этапе компиляции, что размер заголовка кратен 16 (32 байта)
-_Static_assert(sizeof(block_header_t) % 16 == 0, "block_header_t must be 16-byte aligned");
-
-// Яд для детекции use-after-free: свободная память обязана содержать этот байт
-#define HEAP_POISON_BYTE 0xA5
-// Сколько байтов payload проверяем на яд при каждом выделении
-#define HEAP_UAF_CHECK_BYTES 16
 
 // Константы битов прерываний и привилегий RISC-V
 #define MSTATUS_MIE (1ULL << 3)       // Глобальное разрешение прерываний в Machine-mode
@@ -177,20 +143,21 @@ typedef struct {
 #define PMP_X (1ULL << 2)
 #define PMP_TOR (1ULL << 3)
 
-void heap_init(void);
-void heap_dump(void);
-void heap_test(void);
-void* kmalloc(size_t size);
-void kfree(void* ptr);
+// void heap_init(void);
+// void heap_dump(void);
+// void heap_test(void);
+// void* kmalloc(size_t size);
+// void kfree(void* ptr);
 void enable_interrupts(void);
-char uart_getc(void);
+// char uart_getc(void);
 int kstrcmp(const char* s1, const char* s2);
 int kstrlen(const char* s);
-void uart_putc(char c);
-void print(const char* str);
+// void uart_putc(char c);
+// void print(const char* str);
 void poweroff(void);
-static void print_number(uint64_t num, int base, int min_width);
-void kprintf(const char* fmt, ...);
+// static void print_number(uint64_t num, int base, int min_width);
+
+// void kprintf(const char* fmt, ...);
 uint64_t get_ticks(void);
 void print_uptime(void);
 void execute_command(const char* cmd);
@@ -205,3 +172,6 @@ void run_user_mode_demo(void);
 
 void pmp_configure_user(uintptr_t ustack_base, uintptr_t ustack_top);
 void run_pmp_violation_demo(void);
+
+
+#endif
