@@ -3,6 +3,23 @@
 #include <stdarg.h>
 
 
+
+/**
+ * @brief Выводит NUL-терминированную строку в UART.
+ * @param str Указатель на строку (не NULL).
+ *
+ * Символ '\n' автоматически заменяется парой CR+LF ('\r' + '\n'),
+ * как требует терминал QEMU в режиме nographic.
+ */
+void print(const char* str) {
+    while (*str) {
+        if (*str == '\n') {
+            uart_putc('\r'); // Для терминалов nographic перенос строки требует CR+LF
+        }
+        uart_putc(*str++);
+    }
+}
+
 /**
  * @brief Читает один символ из UART методом активного опроса (busy-wait).
  * @return Принятый символ (char).

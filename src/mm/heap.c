@@ -225,11 +225,11 @@ void kfree(void* ptr) {
 
     // 3. Классификация указателя: сначала точные состояния, потом мусор
     if (block->magic == HEAP_MAGIC_FREE && block->is_free == 1) {
-        kprintf("[SECURITY] kfree: Double-Free detected at 0x%p\n", ptr);
+        kprintf("[SECURITY] kfree: Double-Free detected at pointer: %p\n", ptr);
         return;
     }
     if (block->magic != HEAP_MAGIC_ALLOC || block->is_free != 0) {
-        kprintf("[SECURITY] kfree: Invalid/corrupted header at 0x%p\n", ptr);
+        kprintf("[SECURITY] kfree: Invalid/corrupted header at pointer: %p\n", ptr);
         return;
     }
 
