@@ -4,6 +4,7 @@
 #include "./include/types.h"
 #include "./include/mm.h"
 #include "./include/console.h"
+#include "./include/sched.h"
 
 // Регистры управления питанием QEMU (SiFive Test Finisher)
 #define SYSCON_TEST_ADDR 0x100000
@@ -22,11 +23,11 @@
 /// Частота таймера: 10 МГц для QEMU virt, 25 МГц для реального железа
 #define TIMER_FREQ 10000000ULL
 
-// NOLINTBEGIN(bugprone-reserved-identifier)
-extern char _text_start[];
-extern char _text_end[];
-extern char _ram_end[];
-// NOLINTEND(bugprone-reserved-identifier)
+// // NOLINTBEGIN(bugprone-reserved-identifier)
+// extern char _text_start[];
+// extern char _text_end[];
+// extern char _ram_end[];
+// // NOLINTEND(bugprone-reserved-identifier)
 
 // Константы битов прерываний и привилегий RISC-V
 #define MSTATUS_MIE (1ULL << 3)       // Глобальное разрешение прерываний в Machine-mode
@@ -55,58 +56,6 @@ extern char _ram_end[];
 // Код прерывания машинного таймера (старший бит 63 = 1, код = 7)
 #define MCAUSE_TIMER_INTERRUPT ((1ULL << 63) | 7ULL)
 
-// Состояния потока и дескриптор задачи (Task Control Block)
-#define MAX_TASKS 4
-
-typedef enum { TASK_UNUSED = 0, TASK_READY = 1, TASK_RUNNING = 2, TASK_EXITED = 3 } task_state_t;
-
-// Структура сохранённого контекста (должна строго соответствовать смещениям в trap_vector)
-typedef struct {
-    uint64_t ra;
-    uint64_t gp;
-    uint64_t tp;
-    uint64_t t0;
-    uint64_t t1;
-    uint64_t t2;
-    uint64_t s0;
-    uint64_t s1;
-    uint64_t a0;
-    uint64_t a1;
-    uint64_t a2;
-    uint64_t a3;
-    uint64_t a4;
-    uint64_t a5;
-    uint64_t a6;
-    uint64_t a7;
-    uint64_t s2;
-    uint64_t s3;
-    uint64_t s4;
-    uint64_t s5;
-    uint64_t s6;
-    uint64_t s7;
-    uint64_t s8;
-    uint64_t s9;
-    uint64_t s10;
-    uint64_t s11;
-    uint64_t t3;
-    uint64_t t4;
-    uint64_t t5;
-    uint64_t t6;
-    uint64_t sp;
-    uint64_t padding;
-} trap_frame_t;
-
-_Static_assert(sizeof(trap_frame_t) == 256, "trap_frame_t must match 256-byte assembly frame");
-
-typedef struct {
-    int id;
-    task_state_t state;
-    uint64_t mepc;   // Сохранённый счётчик команд потока
-    uint8_t* kstack; // Выделенный в куче стек ядра (на вершине лежит trap_frame_t)
-    uint8_t* ustack; // Выделенный в куче стек пользователя
-    trap_frame_t* frame; // Указатель на контекст 32 регистров в kstack
-} task_t;
-
 // Макрос чтения CSR
 #define read_csr(reg)                                                                                                  \
     ({                                                                                                                 \
@@ -131,23 +80,20 @@ typedef struct {
 
 void enable_interrupts(void);
 
-int kstrcmp(const char* s1, const char* s2);
-int kstrlen(const char* s);
-
-void poweroff(void);
+// int kstrcmp(const char* s1, const char* s2);
+// int kstrlen(const char* s);
 
 uint64_t get_ticks(void);
 void print_uptime(void);
 void execute_command(const char* cmd);
 
-trap_frame_t* trap_handler(trap_frame_t* frame);
+// trap_frame_t* trap_handler(trap_frame_t* frame);
 
-void run_scheduler_demo(void);
-void enter_user_mode(uintptr_t entry, uintptr_t user_sp);
-void exit_user_mode_return(void);
-void run_user_mode_demo(void);
+// void run_scheduler_demo(void);
+// void enter_user_mode(uintptr_t entry, uintptr_t user_sp);
+// void exit_user_mode_return(void);
+// void run_user_mode_demo(void);
 
-void pmp_configure_user(uintptr_t ustack_base, uintptr_t ustack_top);
 void run_pmp_violation_demo(void);
 
 

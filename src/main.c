@@ -10,6 +10,7 @@
 
 #include "./main.h"
 #include "./include/mm.h"
+#include "./include/uart.h"
 
 #include <stdarg.h>
 
