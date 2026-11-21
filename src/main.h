@@ -6,17 +6,13 @@
 #include "./include/console.h"
 #include "./include/sched.h"
 
-// Регистры управления питанием QEMU (SiFive Test Finisher)
-#define SYSCON_TEST_ADDR 0x100000
-#define FINISHER_PASS 0x5555
-
 // Константы битов прерываний RISC-V
 #define MSTATUS_MIE (1ULL << 3) // Глобальное разрешение прерываний в Machine-mode
 #define MIE_MTIE (1ULL << 7)    // Разрешение прерываний от машинного таймера
 
-#define clear_csr(reg, bit) ({ asm volatile("csrc " #reg ", %0" ::"r"(bit)); })
-#define write_csr(reg, val) ({ asm volatile("csrw " #reg ", %0" ::"r"(val)); })
-#define set_csr(reg, bit) ({ asm volatile("csrs " #reg ", %0" ::"r"(bit)); })
+// #define clear_csr(reg, bit) ({ asm volatile("csrc " #reg ", %0" ::"r"(bit)); })
+// #define write_csr(reg, val) ({ asm volatile("csrw " #reg ", %0" ::"r"(val)); })
+// #define set_csr(reg, bit) ({ asm volatile("csrs " #reg ", %0" ::"r"(bit)); })
 
 #define BUFFER_SIZE 64
 

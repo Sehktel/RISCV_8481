@@ -11,6 +11,9 @@
 #include "./main.h"
 #include "./include/mm.h"
 #include "./include/uart.h"
+#include "./include/csr.h"
+#include "./include/kernel_layout.h"
+#include "./include/string.h"
 
 #include <stdarg.h>
 
@@ -115,24 +118,6 @@ void enable_interrupts(void) {
 }
 
 
-/**
- * @brief Выполняет чистое выключение эмулятора QEMU.
- *
- * Записывает "магическое" значение @c FINISHER_PASS (0x5555) в устройство
- * sifive_test по адресу @c SYSCON_TEST_ADDR — QEMU завершает работу с кодом 0.
- *
- * @note На реальном железе этот адрес ничего не отключит: предусмотрена
- *       страховка — бесконечный цикл с инструкцией wfi (wait for interrupt).
- */
-void poweroff(void) {
-    volatile unsigned int* test_finisher = (volatile unsigned int*)SYSCON_TEST_ADDR;
-    *test_finisher = FINISHER_PASS;
-
-    // Предохранитель, если QEMU не отреагировал
-    while (1) {
-        __asm__ volatile("wfi");
-    }
-}
 
 
 /**
@@ -452,12 +437,22 @@ void run_scheduler_demo(void) {
         kfree(tasks[i].ustack);
     }
 }
+// /**
+//  * @brief Злонамеренная задача U-mode: пытается напрямую писать в UART0 в обход syscall.
+//  */
+// static void rogue_uart_task(void) {
+//     sys_call(SYS_PRINT, (uint64_t) "[U-MODE | ROGUE] Пытаюсь напрямую записать символ в UART0 (0x10000000)...\n", 0);
+//     *UART0_THR = 'X'; // Должно вызвать Store Access Fault (mcause = 7)!
+//     sys_call(SYS_PRINT, (uint64_t) "[U-MODE | ROGUE] ОШИБКА: запись в UART0 прошла без блокировки!\n", 0);
+//     sys_call(SYS_EXIT, 0, 0);
+// }
+
 /**
  * @brief Злонамеренная задача U-mode: пытается напрямую писать в UART0 в обход syscall.
  */
 static void rogue_uart_task(void) {
     sys_call(SYS_PRINT, (uint64_t) "[U-MODE | ROGUE] Пытаюсь напрямую записать символ в UART0 (0x10000000)...\n", 0);
-    *UART0_THR = 'X'; // Должно вызвать Store Access Fault (mcause = 7)!
+    *(volatile uint8_t*)UART0_BASE = 'X';   /* осознанный обход API: должен дать Store Access Fault, mcause=7 */
     sys_call(SYS_PRINT, (uint64_t) "[U-MODE | ROGUE] ОШИБКА: запись в UART0 прошла без блокировки!\n", 0);
     sys_call(SYS_EXIT, 0, 0);
 }

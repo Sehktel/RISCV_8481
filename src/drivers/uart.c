@@ -23,10 +23,10 @@
  */
 char uart_getc(void) {
     // Ждем, пока бит 0 (Data Ready) станет равен 1
-    while ((*UART0_LSR & (1 << 0)) == 0)
+    while ((UART0_LSR & LSR_DR) == 0)      // БЕЗ звёздочки
         ;
-    // Возвращаем считанный символ из регистра данных (он же UART0_THR на чтение)
-    return (char)(*UART0_THR);
+    // Возвращаем считанный символ из регистра данных ( «чтение из RBR (тот же адрес, что THR на запись))
+    return (char)UART0_THR;
 }
 
 /**
@@ -37,9 +37,9 @@ char uart_getc(void) {
  * должен быть равен 1.
  */
 void uart_putc(char c) {
-    while ((*UART0_LSR & (1 << 5)) == 0)
-        ; // Ожидание свободного буфера передачи
-    *UART0_THR = c;
+    while ((UART0_LSR & LSR_THRE) == 0)   // БЕЗ звёздочки
+        ;
+    UART0_THR = c;                         // присваивание, не разыменование
 }
 
 
@@ -56,5 +56,24 @@ void print(const char* str) {
             uart_putc('\r'); // Для терминалов nographic перенос строки требует CR+LF
         }
         uart_putc(*str++);
+    }
+}
+
+/**
+ * @brief Выполняет чистое выключение эмулятора QEMU.
+ *
+ * Записывает "магическое" значение @c FINISHER_PASS (0x5555) в устройство
+ * sifive_test по адресу @c SYSCON_TEST_ADDR — QEMU завершает работу с кодом 0.
+ *
+ * @note На реальном железе этот адрес ничего не отключит: предусмотрена
+ *       страховка — бесконечный цикл с инструкцией wfi (wait for interrupt).
+ */
+void poweroff(void) {
+    volatile unsigned int* test_finisher = (volatile unsigned int*)SYSCON_TEST_ADDR;
+    *test_finisher = FINISHER_PASS;
+
+    // Предохранитель, если QEMU не отреагировал
+    while (1) {
+        __asm__ volatile("wfi");
     }
 }
