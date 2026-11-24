@@ -1,6 +1,7 @@
+#include "../include/heap.h"
+#include "../include/console.h"
 #include "../include/mm.h"
 #include "../include/types.h"
-#include "../include/console.h"
 
 static block_header_t* heap_head = NULL;
 

@@ -2,17 +2,15 @@
 #include "../include/types.h"
 #include <stdarg.h>
 
-
 // #define UART0_THR ((volatile unsigned char*)(UART0_BASE + 0x00))
 // #define UART0_LSR ((volatile unsigned char*)(UART0_BASE + 0x05))
-
 
 /// Регистр данных UART (запись — transmit, чтение — receive)
 #define UART0_THR (*(volatile uint8_t*)(UART0_BASE + 0x00))
 /// Регистр статуса линии (бит 0 — Data Ready, бит 5 — THRE)
 #define UART0_LSR (*(volatile uint8_t*)(UART0_BASE + 0x05))
-#define LSR_THRE  0x20
-#define LSR_DR    0x01
+#define LSR_THRE 0x20
+#define LSR_DR 0x01
 
 /**
  * @brief Читает один символ из UART методом активного опроса (busy-wait).
@@ -23,7 +21,7 @@
  */
 char uart_getc(void) {
     // Ждем, пока бит 0 (Data Ready) станет равен 1
-    while ((UART0_LSR & LSR_DR) == 0)      // БЕЗ звёздочки
+    while ((UART0_LSR & LSR_DR) == 0) // БЕЗ звёздочки
         ;
     // Возвращаем считанный символ из регистра данных ( «чтение из RBR (тот же адрес, что THR на запись))
     return (char)UART0_THR;
@@ -37,11 +35,10 @@ char uart_getc(void) {
  * должен быть равен 1.
  */
 void uart_putc(char c) {
-    while ((UART0_LSR & LSR_THRE) == 0)   // БЕЗ звёздочки
+    while ((UART0_LSR & LSR_THRE) == 0) // БЕЗ звёздочки
         ;
-    UART0_THR = c;                         // присваивание, не разыменование
+    UART0_THR = c; // присваивание, не разыменование
 }
-
 
 /**
  * @brief Выводит NUL-терминированную строку в UART.

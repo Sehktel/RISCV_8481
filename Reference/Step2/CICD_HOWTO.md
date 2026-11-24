@@ -41,6 +41,8 @@ target_link_options(kernel.elf PRIVATE
 # Включаем пути поиска заголовочных файлов
 target_include_directories(kernel.elf PRIVATE
     "${CMAKE_CURRENT_SOURCE_DIR}/src"
+    "${CMAKE_CURRENT_SOURCE_DIR}/include"
+
 )
 
 # Автоматическая генерация сырого бинарника (.bin) строго в папке bin/

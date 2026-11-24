@@ -1,6 +1,5 @@
 cmake_minimum_required(VERSION 3.16)
 
-set(CMAKE_TRY_COMPILE_TARGET_TYPE "STATIC_LIBRARY")
 set(CMAKE_TOOLCHAIN_FILE "${CMAKE_CURRENT_SOURCE_DIR}/cmake/riscv64-toolchain.cmake" CACHE FILEPATH "")
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 
@@ -20,7 +19,7 @@ endif()
 add_executable(kernel.elf ${SOURCES})
 
 target_include_directories(kernel.elf PRIVATE
-    "${CMAKE_CURRENT_SOURCE_DIR}/include"
+    "${CMAKE_CURRENT_SOURCE_DIR}/src/include"
     "${CMAKE_CURRENT_SOURCE_DIR}/src")
 
 target_link_options(kernel.elf PRIVATE

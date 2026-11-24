@@ -24,12 +24,11 @@ typedef struct block_header {
     uint8_t is_free;           // 1 байт (+ 7 байт паддинга)
 } __attribute__((aligned(16))) block_header_t;
 
-
 void heap_init(void);
 void heap_dump(void);
 void heap_test(void);
 void* kmalloc(size_t size);
-void kfree(void* ptr);
+// void kfree(void* ptr);
 
 // Гарантируем на этапе компиляции, что размер заголовка кратен 16 (32 байта)
 _Static_assert(sizeof(block_header_t) % 16 == 0, "block_header_t must be 16-byte aligned");

@@ -6,7 +6,7 @@
  * в адрес, поэтому &_text_start — начало секции, а не чтение памяти по ней. */
 
 extern char _text_start[];
-extern char _text_end[];    /* ВАЖНО: стоит ПОСЛЕ .rodata — на это опирается pmp_configure_user (PMP TOR R+X регион) */
+extern char _text_end[]; /* ВАЖНО: стоит ПОСЛЕ .rodata — на это опирается pmp_configure_user (PMP TOR R+X регион) */
 extern char _bss_start[];
 extern char _bss_end[];
 extern char _stack_bottom[];

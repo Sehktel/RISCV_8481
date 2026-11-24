@@ -26,9 +26,8 @@ typedef _Bool bool;
 #define true 1
 #define false 0
 
-
 /* Выравнивание вверх до границы (x должен быть беззнаковым) */
-#define ALIGN_UP(x, a)   (((x) + (a) - 1) & ~((a) - 1))
-#define ALIGN16(x)       ALIGN_UP(x, 16)
+#define ALIGN_UP(x, a) (((x) + (a) - 1) & ~((a) - 1))
+#define ALIGN16(x) ALIGN_UP(x, 16)
 
 #endif /* TYPES_H */

@@ -8,7 +8,6 @@
 #define SYSCON_TEST_ADDR 0x100000
 #define FINISHER_PASS 0x5555
 
-
 char uart_getc(void);
 void uart_putc(char c);
 void print(const char* str);

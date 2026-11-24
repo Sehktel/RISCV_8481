@@ -8,55 +8,30 @@
  * без стандартной библиотеки.
  */
 
-#include "./main.h"
-#include "./include/mm.h"
-#include "./include/uart.h"
+// #include "./main.h"
+#include "./include/console.h"
 #include "./include/csr.h"
+#include "./include/heap.h"
 #include "./include/kernel_layout.h"
+#include "./include/mm.h"
+#include "./include/pmp.h"
+#include "./include/sched.h"
 #include "./include/string.h"
+#include "./include/timer.h"
+#include "./include/uart.h"
 
 #include <stdarg.h>
 
-static task_t tasks[MAX_TASKS];
-static int current_task_idx = -1;
-static int scheduler_active = 0;
-static int timer_ticks_count = 0;
-static uintptr_t shell_return_sp = 0;
+// static task_t tasks[MAX_TASKS];
+// static int current_task_idx = -1;
+// static int scheduler_active = 0;
+// static int timer_ticks_count = 0;
+// static uintptr_t shell_return_sp = 0;
 
+#define BUFFER_SIZE 64
 
-/**
- * @brief Настраивает аппаратную защиту памяти PMP (режим TOR) для процесса U-mode.
- *
- * Разрешает U-mode:
- *   - R+X для кода и констант [_text_start, _text_end)
- *   - R+W (без X, аппаратный NX) для собственного стека [ustack_base, ustack_top)
- * Запрещает прямой доступ к памяти ядра (.data, .bss, куча) и MMIO (UART0, CLINT).
- */
-void pmp_configure_user(uintptr_t ustack_base, uintptr_t ustack_top) {
-    // entry0: [0, _text_start)        — запрет (MMIO: UART, CLINT)
-    // entry1: [_text_start, _rodata_end) — R+X (код + константы, читаемые U-mode)
-    // entry2: [_rodata_end, ustack_base) — запрет (.data, .bss, куча)
-    // entry3: [ustack_base, ustack_top)  — R+W, NX (стек задачи)
-    // entry4: [ustack_top, конец RAM)    — запрет (куча выше, стеки других задач)
-
-    write_csr(pmpaddr0, (uintptr_t)_text_start >> 2);
-    write_csr(pmpaddr1, (uintptr_t)_text_end >> 2);
-    write_csr(pmpaddr2, ustack_base >> 2);
-    write_csr(pmpaddr3, ustack_top >> 2);
-    write_csr(pmpaddr4, ((uintptr_t)_ram_end - 1) >> 2);
-
-    uint64_t cfg = (PMP_TOR)                          |   // entry0: низ закрыт
-                   ((PMP_TOR | PMP_R | PMP_X) << 8)   |   // entry1: код
-                   ((PMP_TOR) << 16)                  |   // entry2: запрет ядра
-                   ((PMP_TOR | PMP_R | PMP_W) << 24)  |   // entry3: стек задачи
-                   ((PMP_TOR) << 32);                     // entry4: верх закрыт
-    write_csr(pmpcfg0, cfg);
-
-    // Сброс трансляций после изменения правил защиты
-    asm volatile("sfence.vma zero, zero" ::: "memory");
-}
-
-
+#define MSTATUS_MIE (1ULL << 3) // Глобальное разрешение прерываний в Machine-mode
+#define MIE_MTIE (1ULL << 7)    // Разрешение прерываний от машинного таймера
 
 /**
  * @brief Включает архитектурные прерывания процессора в Machine-mode.
@@ -117,22 +92,19 @@ void enable_interrupts(void) {
     set_csr(mstatus, MSTATUS_MIE);
 }
 
-
-
-
-/**
- * @brief Читает 64-битный счётчик аппаратного времени (mtime).
- * @return Текущее значение счётчика в тиках.
- *
- * В QEMU virt тики идут с частотой TIMER_FREQ (10 МГц).
- * Инструкция rdtime атомарно читает CSR time, так что разрыв
- * между старшим и младшим словом невозможен.
- */
-uint64_t get_ticks(void) {
-    uint64_t ticks;
-    asm volatile("rdtime %0" : "=r"(ticks));
-    return ticks;
-}
+// /**
+//  * @brief Читает 64-битный счётчик аппаратного времени (mtime).
+//  * @return Текущее значение счётчика в тиках.
+//  *
+//  * В QEMU virt тики идут с частотой TIMER_FREQ (10 МГц).
+//  * Инструкция rdtime атомарно читает CSR time, так что разрыв
+//  * между старшим и младшим словом невозможен.
+//  */
+// uint64_t get_ticks(void) {
+//     uint64_t ticks;
+//     asm volatile("rdtime %0" : "=r"(ticks));
+//     return ticks;
+// }
 
 /**
  * @brief Вычисляет и выводит время работы ядра в формате MM:SS.mmm.
@@ -164,19 +136,19 @@ void print_uptime(void) {
     kprintf("%d (Ticks: %d)\n", (int)ms, (int)ticks);
 }
 
-/**
- * @brief Обёртка пользовательского пространства над инструкцией ecall.
- * Выполняется в U-mode: прямая запись в UART0 здесь вызвала бы Load/Store Fault
- * при включённом PMP, поэтому обращение к ядру идёт строго через ABI ecall.
- */
-static uint64_t sys_call(uint64_t sys_num, uint64_t arg0, uint64_t arg1) {
-    register uint64_t a0 asm("a0") = arg0;
-    register uint64_t a1 asm("a1") = arg1;
-    register uint64_t a7 asm("a7") = sys_num;
+// /**
+//  * @brief Обёртка пользовательского пространства над инструкцией ecall.
+//  * Выполняется в U-mode: прямая запись в UART0 здесь вызвала бы Load/Store Fault
+//  * при включённом PMP, поэтому обращение к ядру идёт строго через ABI ecall.
+//  */
+// static uint64_t sys_call(uint64_t sys_num, uint64_t arg0, uint64_t arg1) {
+//     register uint64_t a0 asm("a0") = arg0;
+//     register uint64_t a1 asm("a1") = arg1;
+//     register uint64_t a7 asm("a7") = sys_num;
 
-    asm volatile("ecall" : "+r"(a0) : "r"(a1), "r"(a7) : "memory");
-    return a0;
-}
+//     asm volatile("ecall" : "+r"(a0) : "r"(a1), "r"(a7) : "memory");
+//     return a0;
+// }
 
 /**
  * @brief Тестовая задача, исполняемая процессором строго в User Mode (U-mode).
@@ -197,246 +169,313 @@ static void user_task(void) {
     }
 }
 
-/**
- * @brief Планирует следующее прерывание таймера CLINT через quantum тиков.
- */
-static void timer_set_next(uint64_t quantum) {
-    *CLINT_MTIMECMP0 = *CLINT_MTIME + quantum;
-}
+// /**
+//  * @brief Планирует следующее прерывание таймера CLINT через quantum тиков.
+//  */
+// static void timer_set_next(uint64_t quantum) {
+//     *CLINT_MTIMECMP0 = *CLINT_MTIME + quantum;
+// }
 
-/**
- * @brief Включает или отключает прерывания машинного таймера (MIE.MTIE).
- */
-static void timer_enable(bool enable) {
-    if (enable) {
-        timer_set_next(SCHED_QUANTUM_TICKS);
-        set_csr(mie, MIE_MTIE);
-    } else {
-        clear_csr(mie, MIE_MTIE);
-    }
-}
+// /**
+//  * @brief Включает или отключает прерывания машинного таймера (MIE.MTIE).
+//  */
+// static void timer_enable(bool enable) {
+//     if (enable) {
+//         timer_set_next(SCHED_QUANTUM_TICKS);
+//         set_csr(mie, MIE_MTIE);
+//     } else {
+//         clear_csr(mie, MIE_MTIE);
+//     }
+// }
 
-/**
- * @brief Поток А (U-mode): выполняет вычисления без добровольной уступки CPU.
- */
-static void worker_task_a(void) {
-    uint64_t iter = 0;
-    for (;;) {
-        if ((iter % 2000000ULL) == 0) {
-            sys_call(SYS_PRINT, (uint64_t) "  [TASK A | U-mode] Выполняю вычисления...\n", 0);
-        }
-        iter++;
-    }
-}
+// /**
+//  * @brief Поток А (U-mode): выполняет вычисления без добровольной уступки CPU.
+//  */
+// static void worker_task_a(void) {
+//     uint64_t iter = 0;
+//     for (;;) {
+//         if ((iter % 2000000ULL) == 0) {
+//             sys_call(SYS_PRINT, (uint64_t) "  [TASK A | U-mode] Выполняю вычисления...\n", 0);
+//         }
+//         iter++;
+//     }
+// }
 
-/**
- * @brief Поток Б (U-mode): конкурирует за процессорное время с Потоком А.
- */
-static void worker_task_b(void) {
-    uint64_t iter = 0;
-    for (;;) {
-        if ((iter % 2000000ULL) == 0) {
-            sys_call(SYS_PRINT, (uint64_t) "  [TASK B | U-mode] Параллельный поток активен!\n", 0);
-        }
-        iter++;
-    }
-}
+// /**
+//  * @brief Поток Б (U-mode): конкурирует за процессорное время с Потоком А.
+//  */
+// static void worker_task_b(void) {
+//     uint64_t iter = 0;
+//     for (;;) {
+//         if ((iter % 2000000ULL) == 0) {
+//             sys_call(SYS_PRINT, (uint64_t) "  [TASK B | U-mode] Параллельный поток активен!\n", 0);
+//         }
+//         iter++;
+//     }
+// }
 
-/**
- * @brief Инициализирует слот задачи в планировщике и формирует начальный trap_frame_t.
- */
-static bool task_create(int slot, void (*entry)(void)) {
-    const size_t stack_size = 4096;
-    uint8_t* kstack = (uint8_t*)kmalloc(stack_size);
-    uint8_t* ustack = (uint8_t*)kmalloc(stack_size);
-    if (kstack == NULL || ustack == NULL) {
-        kfree(kstack);
-        kfree(ustack);
-        return false;
-    }
+// /**
+//  * @brief Поток А (U-mode): выполняет вычисления без добровольной уступки CPU.
+//  */
+// static void worker_task_a(void) {
+//     uint64_t iter = 0;
+//     for (;;) {
+//         if ((iter % 2000000ULL) == 0) {
+//             sys_call(SYS_PRINT, (uint64_t) "  [TASK A | U-mode] Выполняю вычисления...\n", 0);
+//         }
+//         iter++;
+//     }
+// }
 
-    // Размещаем начальный 256-байтный контекст на вершине стека ядра задачи
-    trap_frame_t* frame = (trap_frame_t*)(kstack + stack_size - sizeof(trap_frame_t));
-    uint8_t* raw = (uint8_t*)frame;
-    for (size_t i = 0; i < sizeof(trap_frame_t); i++) {
-        raw[i] = 0;
-    }
-    frame->sp = (uintptr_t)(ustack + stack_size);
+// /**
+//  * @brief Поток Б (U-mode): конкурирует за процессорное время с Потоком А.
+//  */
+// static void worker_task_b(void) {
+//     uint64_t iter = 0;
+//     for (;;) {
+//         if ((iter % 2000000ULL) == 0) {
+//             sys_call(SYS_PRINT, (uint64_t) "  [TASK B | U-mode] Параллельный поток активен!\n", 0);
+//         }
+//         iter++;
+//     }
+// }
 
-    tasks[slot].id = slot + 1;
-    tasks[slot].state = TASK_READY;
-    tasks[slot].mepc = (uintptr_t)entry;
-    tasks[slot].kstack = kstack;
-    tasks[slot].ustack = ustack;
-    tasks[slot].frame = frame;
-    return true;
-}
+// void run_scheduler_demo(void) {
+//     for (int i = 0; i < MAX_TASKS; i++) {
+//         tasks[i].state = TASK_UNUSED;
+//         tasks[i].kstack = NULL;
+//         tasks[i].ustack = NULL;
+//     }
 
-/**
- * @brief Выбирает следующую готовую задачу по кругу (Round-Robin).
- */
-static trap_frame_t* schedule_next(trap_frame_t* current_frame) {
-    if (current_task_idx >= 0 && tasks[current_task_idx].state == TASK_RUNNING) {
-        tasks[current_task_idx].mepc = read_csr(mepc);
-        tasks[current_task_idx].frame = current_frame;
-        tasks[current_task_idx].state = TASK_READY;
-    }
+//     if (!task_create(0, worker_task_a) || !task_create(1, worker_task_b)) {
+//         kprintf("[ERROR] Не удалось выделить память под задачи планировщика\n");
+//         kfree(tasks[0].kstack);
+//         kfree(tasks[0].ustack);
+//         return;
+//     }
 
-    for (int offset = 1; offset <= MAX_TASKS; offset++) {
+//     // Этап 10: сужаем границы
+//     pmp_configure_user((uintptr_t)tasks[0].ustack, tasks[0].frame->sp);
 
-        int next_idx = (current_task_idx + offset) % MAX_TASKS;
+//     // write_csr(pmpaddr0, (~0ULL) >> 10);
+//     // write_csr(pmpcfg0, 0x0FULL);
 
-        pmp_configure_user((uintptr_t)tasks[next_idx].ustack, (uintptr_t)(tasks[next_idx].ustack + 4096));
+//     current_task_idx = 0;
+//     tasks[0].state = TASK_RUNNING;
+//     timer_ticks_count = 0;
+//     scheduler_active = 1;
 
-        if (tasks[next_idx].state == TASK_READY) {
-            current_task_idx = next_idx;
-            tasks[next_idx].state = TASK_RUNNING;
-            write_csr(mepc, tasks[next_idx].mepc);
-            return tasks[next_idx].frame;
-        }
-    }
-    return current_frame;
-}
+//     // Запоминаем вершину стека ядра для возврата в Shell после завершения демо
+//     uint64_t cur_sp;
+//     asm volatile("mv %0, sp" : "=r"(cur_sp));
+//     shell_return_sp = cur_sp - 112; // Учитываем фрейм enter_user_mode
 
-trap_frame_t* trap_handler(trap_frame_t* frame) {
-    uint64_t mcause = read_csr(mcause);
-    uint64_t mepc = read_csr(mepc);
-    uint64_t mtval = read_csr(mtval);
+//     kprintf("[SCHED] Запуск вытесняющего планировщика Round-Robin (2 потока U-mode, квант 100 мс)...\n");
+//     timer_enable(true);
 
-    // 1. Обработка прерывания машинного таймера CLINT (Вытесняющий Round-Robin)
-    if (mcause == MCAUSE_TIMER_INTERRUPT) {
-        timer_set_next(SCHED_QUANTUM_TICKS);
+//     enter_user_mode(tasks[0].mepc, tasks[0].frame->sp);
 
-        if (scheduler_active) {
-            timer_ticks_count++;
-            kprintf("[TIMER IRQ #%d] Переключение контекста (Round-Robin)...\n", timer_ticks_count);
+//     kprintf("[SCHED] Демонстрация планировщика завершена. Освобождаем память задач...\n");
+//     for (int i = 0; i < 2; i++) {
+//         kfree(tasks[i].kstack);
+//         kfree(tasks[i].ustack);
+//     }
+// }
+// /**
+//  * @brief Инициализирует слот задачи в планировщике и формирует начальный trap_frame_t.
+//  */
+// static bool task_create(int slot, void (*entry)(void)) {
+//     const size_t stack_size = 4096;
+//     uint8_t* kstack = (uint8_t*)kmalloc(stack_size);
+//     uint8_t* ustack = (uint8_t*)kmalloc(stack_size);
+//     if (kstack == NULL || ustack == NULL) {
+//         kfree(kstack);
+//         kfree(ustack);
+//         return false;
+//     }
 
-            // После 6 квантов (600 мс) завершаем демонстрацию и возвращаемся в Shell
-            if (timer_ticks_count >= 6) {
-                timer_enable(false);
-                scheduler_active = 0;
-                frame->sp = shell_return_sp;
-                write_csr(mepc, (uint64_t)exit_user_mode_return);
-                uint64_t mstatus = read_csr(mstatus);
-                mstatus |= MSTATUS_MPP_MASK;
-                write_csr(mstatus, mstatus);
-                return frame;
-            }
-            return schedule_next(frame);
-        }
-        return frame;
-    }
+//     // Размещаем начальный 256-байтный контекст на вершине стека ядра задачи
+//     trap_frame_t* frame = (trap_frame_t*)(kstack + stack_size - sizeof(trap_frame_t));
+//     uint8_t* raw = (uint8_t*)frame;
+//     for (size_t i = 0; i < sizeof(trap_frame_t); i++) {
+//         raw[i] = 0;
+//     }
+//     frame->sp = (uintptr_t)(ustack + stack_size);
 
-    if ((mcause >> 63) != 0) {
-        kprintf("[TRAP] Аппаратное прерывание: mcause=0x%lx, mepc=0x%lx\n", mcause, mepc);
-        return frame;
-    }
+//     tasks[slot].id = slot + 1;
+//     tasks[slot].state = TASK_READY;
+//     tasks[slot].mepc = (uintptr_t)entry;
+//     tasks[slot].kstack = kstack;
+//     tasks[slot].ustack = ustack;
+//     tasks[slot].frame = frame;
+//     return true;
+// }
 
-    if (mcause == CAUSE_ECALL_FROM_UMODE) {
-        uint64_t sys_num = frame->a7;
+// /**
+//  * @brief Выбирает следующую готовую задачу по кругу (Round-Robin).
+//  */
+// static trap_frame_t* schedule_next(trap_frame_t* current_frame) {
+//     if (current_task_idx >= 0 && tasks[current_task_idx].state == TASK_RUNNING) {
+//         tasks[current_task_idx].mepc = read_csr(mepc);
+//         tasks[current_task_idx].frame = current_frame;
+//         tasks[current_task_idx].state = TASK_READY;
+//     }
 
-        switch (sys_num) {
-        case SYS_PRINT: {
-            const char* str = (const char*)frame->a0;
-            if (str != NULL) {
-                print(str);
-            }
-            frame->a0 = 0;
-            break;
-        }
-        case SYS_GET_TICKS: {
-            frame->a0 = get_ticks();
-            break;
-        }
-        case SYS_EXIT: {
-            uint64_t exit_code = frame->a0;
-            kprintf("[KERNEL] Процесс U-mode завершился через SYS_EXIT (код: %lu)\n", exit_code);
-            frame->sp = (uintptr_t)frame + sizeof(trap_frame_t);
-            write_csr(mepc, (uint64_t)exit_user_mode_return);
-            uint64_t mstatus = read_csr(mstatus);
-            mstatus |= MSTATUS_MPP_MASK;
-            write_csr(mstatus, mstatus);
-            return frame;
-        }
-        default:
-            kprintf("[SECURITY] Неизвестный syscall %lu из U-mode (mepc=0x%lx)\n", sys_num, mepc);
-            frame->a0 = (uint64_t)-1;
-            break;
-        }
+//     for (int offset = 1; offset <= MAX_TASKS; offset++) {
 
-        write_csr(mepc, mepc + 4);
-        return frame;
-    }
-    if (mcause == CAUSE_INSTRUCTION_ACCESS_FAULT || mcause == CAUSE_LOAD_ACCESS_FAULT ||
-        mcause == CAUSE_STORE_ACCESS_FAULT) {
-        const char* fault_type = "Instruction Access Fault (NX / Exec запрещён)";
-        if (mcause == CAUSE_LOAD_ACCESS_FAULT) {
-            fault_type = "Load Access Fault (Чтение запрещённой области)";
-        } else if (mcause == CAUSE_STORE_ACCESS_FAULT) {
-            fault_type = "Store/AMO Access Fault (Запись в защищённую область / MMIO)";
-        }
+//         int next_idx = (current_task_idx + offset) % MAX_TASKS;
 
-        kprintf("\n[SECURITY] PMP Violation! %s\n", fault_type);
-        kprintf("[SECURITY] mcause=%lu | mepc=0x%lx | mtval=0x%lx — процесс принудительно завершён!\n", mcause, mepc,
-                mtval);
+//         pmp_configure_user((uintptr_t)tasks[next_idx].ustack, (uintptr_t)(tasks[next_idx].ustack + 4096));
 
-        // Аварийно завершаем нарушивший U-mode процесс и возвращаемся в M-mode Shell
-        frame->a0 = (uint64_t)-1;
-        frame->sp = (uintptr_t)frame + sizeof(trap_frame_t);
-        write_csr(mepc, (uint64_t)exit_user_mode_return);
-        uint64_t mstatus = read_csr(mstatus);
-        mstatus |= MSTATUS_MPP_MASK;
-        write_csr(mstatus, mstatus);
-        return frame;
-    }
+//         if (tasks[next_idx].state == TASK_READY) {
+//             current_task_idx = next_idx;
+//             tasks[next_idx].state = TASK_RUNNING;
+//             write_csr(mepc, tasks[next_idx].mepc);
+//             return tasks[next_idx].frame;
+//         }
+//     }
+//     return current_frame;
+// }
 
-    kprintf("\n[PANIC] Необработанное исключение: mcause=%lu, mepc=0x%lx, mtval=0x%lx\n", mcause, mepc, mtval);
-    for (;;) {
-        asm volatile("wfi");
-    }
-}
+// trap_frame_t* trap_handler(trap_frame_t* frame) {
+//     uint64_t mcause = read_csr(mcause);
+//     uint64_t mepc = read_csr(mepc);
+//     uint64_t mtval = read_csr(mtval);
 
-void run_scheduler_demo(void) {
-    for (int i = 0; i < MAX_TASKS; i++) {
-        tasks[i].state = TASK_UNUSED;
-        tasks[i].kstack = NULL;
-        tasks[i].ustack = NULL;
-    }
+//     // 1. Обработка прерывания машинного таймера CLINT (Вытесняющий Round-Robin)
+//     if (mcause == MCAUSE_TIMER_INTERRUPT) {
+//         timer_set_next(SCHED_QUANTUM_TICKS);
 
-    if (!task_create(0, worker_task_a) || !task_create(1, worker_task_b)) {
-        kprintf("[ERROR] Не удалось выделить память под задачи планировщика\n");
-        kfree(tasks[0].kstack);
-        kfree(tasks[0].ustack);
-        return;
-    }
+//         if (scheduler_active) {
+//             timer_ticks_count++;
+//             kprintf("[TIMER IRQ #%d] Переключение контекста (Round-Robin)...\n", timer_ticks_count);
 
-    // Этап 10: сужаем границы
-    pmp_configure_user((uintptr_t)tasks[0].ustack, tasks[0].frame->sp);
+//             // После 6 квантов (600 мс) завершаем демонстрацию и возвращаемся в Shell
+//             if (timer_ticks_count >= 6) {
+//                 timer_enable(false);
+//                 scheduler_active = 0;
+//                 frame->sp = shell_return_sp;
+//                 write_csr(mepc, (uint64_t)exit_user_mode_return);
+//                 uint64_t mstatus = read_csr(mstatus);
+//                 mstatus |= MSTATUS_MPP_MASK;
+//                 write_csr(mstatus, mstatus);
+//                 return frame;
+//             }
+//             return schedule_next(frame);
+//         }
+//         return frame;
+//     }
 
-    // write_csr(pmpaddr0, (~0ULL) >> 10);
-    // write_csr(pmpcfg0, 0x0FULL);
+//     if ((mcause >> 63) != 0) {
+//         kprintf("[TRAP] Аппаратное прерывание: mcause=0x%lx, mepc=0x%lx\n", mcause, mepc);
+//         return frame;
+//     }
 
-    current_task_idx = 0;
-    tasks[0].state = TASK_RUNNING;
-    timer_ticks_count = 0;
-    scheduler_active = 1;
+//     if (mcause == CAUSE_ECALL_FROM_UMODE) {
+//         uint64_t sys_num = frame->a7;
 
-    // Запоминаем вершину стека ядра для возврата в Shell после завершения демо
-    uint64_t cur_sp;
-    asm volatile("mv %0, sp" : "=r"(cur_sp));
-    shell_return_sp = cur_sp - 112; // Учитываем фрейм enter_user_mode
+//         switch (sys_num) {
+//         case SYS_PRINT: {
+//             const char* str = (const char*)frame->a0;
+//             if (str != NULL) {
+//                 print(str);
+//             }
+//             frame->a0 = 0;
+//             break;
+//         }
+//         case SYS_GET_TICKS: {
+//             frame->a0 = get_ticks();
+//             break;
+//         }
+//         case SYS_EXIT: {
+//             uint64_t exit_code = frame->a0;
+//             kprintf("[KERNEL] Процесс U-mode завершился через SYS_EXIT (код: %lu)\n", exit_code);
+//             frame->sp = (uintptr_t)frame + sizeof(trap_frame_t);
+//             write_csr(mepc, (uint64_t)exit_user_mode_return);
+//             uint64_t mstatus = read_csr(mstatus);
+//             mstatus |= MSTATUS_MPP_MASK;
+//             write_csr(mstatus, mstatus);
+//             return frame;
+//         }
+//         default:
+//             kprintf("[SECURITY] Неизвестный syscall %lu из U-mode (mepc=0x%lx)\n", sys_num, mepc);
+//             frame->a0 = (uint64_t)-1;
+//             break;
+//         }
 
-    kprintf("[SCHED] Запуск вытесняющего планировщика Round-Robin (2 потока U-mode, квант 100 мс)...\n");
-    timer_enable(true);
+//         write_csr(mepc, mepc + 4);
+//         return frame;
+//     }
+//     if (mcause == CAUSE_INSTRUCTION_ACCESS_FAULT || mcause == CAUSE_LOAD_ACCESS_FAULT ||
+//         mcause == CAUSE_STORE_ACCESS_FAULT) {
+//         const char* fault_type = "Instruction Access Fault (NX / Exec запрещён)";
+//         if (mcause == CAUSE_LOAD_ACCESS_FAULT) {
+//             fault_type = "Load Access Fault (Чтение запрещённой области)";
+//         } else if (mcause == CAUSE_STORE_ACCESS_FAULT) {
+//             fault_type = "Store/AMO Access Fault (Запись в защищённую область / MMIO)";
+//         }
 
-    enter_user_mode(tasks[0].mepc, tasks[0].frame->sp);
+//         kprintf("\n[SECURITY] PMP Violation! %s\n", fault_type);
+//         kprintf("[SECURITY] mcause=%lu | mepc=0x%lx | mtval=0x%lx — процесс принудительно завершён!\n", mcause, mepc,
+//                 mtval);
 
-    kprintf("[SCHED] Демонстрация планировщика завершена. Освобождаем память задач...\n");
-    for (int i = 0; i < 2; i++) {
-        kfree(tasks[i].kstack);
-        kfree(tasks[i].ustack);
-    }
-}
+//         // Аварийно завершаем нарушивший U-mode процесс и возвращаемся в M-mode Shell
+//         frame->a0 = (uint64_t)-1;
+//         frame->sp = (uintptr_t)frame + sizeof(trap_frame_t);
+//         write_csr(mepc, (uint64_t)exit_user_mode_return);
+//         uint64_t mstatus = read_csr(mstatus);
+//         mstatus |= MSTATUS_MPP_MASK;
+//         write_csr(mstatus, mstatus);
+//         return frame;
+//     }
+
+//     kprintf("\n[PANIC] Необработанное исключение: mcause=%lu, mepc=0x%lx, mtval=0x%lx\n", mcause, mepc, mtval);
+//     for (;;) {
+//         asm volatile("wfi");
+//     }
+// }
+
+// void run_scheduler_demo(void) {
+//     for (int i = 0; i < MAX_TASKS; i++) {
+//         tasks[i].state = TASK_UNUSED;
+//         tasks[i].kstack = NULL;
+//         tasks[i].ustack = NULL;
+//     }
+
+//     if (!task_create(0, worker_task_a) || !task_create(1, worker_task_b)) {
+//         kprintf("[ERROR] Не удалось выделить память под задачи планировщика\n");
+//         kfree(tasks[0].kstack);
+//         kfree(tasks[0].ustack);
+//         return;
+//     }
+
+//     // Этап 10: сужаем границы
+//     pmp_configure_user((uintptr_t)tasks[0].ustack, tasks[0].frame->sp);
+
+//     // write_csr(pmpaddr0, (~0ULL) >> 10);
+//     // write_csr(pmpcfg0, 0x0FULL);
+
+//     current_task_idx = 0;
+//     tasks[0].state = TASK_RUNNING;
+//     timer_ticks_count = 0;
+//     scheduler_active = 1;
+
+//     // Запоминаем вершину стека ядра для возврата в Shell после завершения демо
+//     uint64_t cur_sp;
+//     asm volatile("mv %0, sp" : "=r"(cur_sp));
+//     shell_return_sp = cur_sp - 112; // Учитываем фрейм enter_user_mode
+
+//     kprintf("[SCHED] Запуск вытесняющего планировщика Round-Robin (2 потока U-mode, квант 100 мс)...\n");
+//     timer_enable(true);
+
+//     enter_user_mode(tasks[0].mepc, tasks[0].frame->sp);
+
+//     kprintf("[SCHED] Демонстрация планировщика завершена. Освобождаем память задач...\n");
+//     for (int i = 0; i < 2; i++) {
+//         kfree(tasks[i].kstack);
+//         kfree(tasks[i].ustack);
+//     }
+// }
 // /**
 //  * @brief Злонамеренная задача U-mode: пытается напрямую писать в UART0 в обход syscall.
 //  */
@@ -452,11 +491,10 @@ void run_scheduler_demo(void) {
  */
 static void rogue_uart_task(void) {
     sys_call(SYS_PRINT, (uint64_t) "[U-MODE | ROGUE] Пытаюсь напрямую записать символ в UART0 (0x10000000)...\n", 0);
-    *(volatile uint8_t*)UART0_BASE = 'X';   /* осознанный обход API: должен дать Store Access Fault, mcause=7 */
+    *(volatile uint8_t*)UART0_BASE = 'X'; /* осознанный обход API: должен дать Store Access Fault, mcause=7 */
     sys_call(SYS_PRINT, (uint64_t) "[U-MODE | ROGUE] ОШИБКА: запись в UART0 прошла без блокировки!\n", 0);
     sys_call(SYS_EXIT, 0, 0);
 }
-
 void run_pmp_violation_demo(void) {
     const size_t user_stack_size = 4096;
     uint8_t* user_stack = (uint8_t*)kmalloc(user_stack_size);
@@ -465,15 +503,51 @@ void run_pmp_violation_demo(void) {
         return;
     }
 
+    /* Запоминаем, куда вернуться при любой ловушке из U-mode (SYS_EXIT,
+     * PMP-фолт и т.д.): kill_current_task и exit_user_mode_return обе
+     * используют shell_return_sp. Фрейм enter_user_mode — 112 байт. */
+    uint64_t cur_sp;
+    asm volatile("mv %0, sp" : "=r"(cur_sp));
+    sched_set_shell_return_sp(cur_sp - 112);
+    // shell_return_sp = cur_sp - 112;
+
+    /* Планировщик тут не при делах: демо вне задач, поэтому снимаем
+     * контекст "текущей задачи", чтобы kill_current_task ничего не убил. */
+    sched_clear_current_task(); // current_task_idx = -1;
+
     uintptr_t user_sp = (uintptr_t)(user_stack + user_stack_size);
-    pmp_configure_user((uintptr_t)user_stack, user_sp);
+    pmp_configure_user((uintptr_t)user_stack, user_sp); /* строгий профиль */
 
     kprintf("[KERNEL] Запускаем задачу-нарушитель U-mode со строгим PMP...\n");
     enter_user_mode((uintptr_t)rogue_uart_task, user_sp);
 
+    /* Сюда попадаем двумя путями: rogue штатно вернулся через SYS_EXIT
+     * либо был убит по PMP-фолту — оба идут через shell_return_sp. */
     kprintf("[KERNEL] Ядро устояло, управление возвращено в M-mode Shell!\n");
+
+    /* Восстанавливаем дефолтный профиль защиты: строгий PMP этого демо
+     * не должен влиять на последующие запуски (например, shed). */
+    pmp_set_default_user_profile();
+
     kfree(user_stack);
 }
+// void run_pmp_violation_demo(void) {
+//     const size_t user_stack_size = 4096;
+//     uint8_t* user_stack = (uint8_t*)kmalloc(user_stack_size);
+//     if (user_stack == NULL) {
+//         kprintf("[ERROR] Не удалось выделить память под стек U-mode\n");
+//         return;
+//     }
+
+//     uintptr_t user_sp = (uintptr_t)(user_stack + user_stack_size);
+//     pmp_configure_user((uintptr_t)user_stack, user_sp);
+
+//     kprintf("[KERNEL] Запускаем задачу-нарушитель U-mode со строгим PMP...\n");
+//     enter_user_mode((uintptr_t)rogue_uart_task, user_sp);
+
+//     kprintf("[KERNEL] Ядро устояло, управление возвращено в M-mode Shell!\n");
+//     kfree(user_stack);
+// }
 
 /**
  * @brief Выделяет пользовательский стек в куче и запускает user_task в U-mode.
@@ -601,14 +675,14 @@ void kmain(void) {
     int index = 0;
 
     // Главный цикл ядра ОС
-    while (true) { //while (true) более правильно чем while(1)
+    while (true) { // while (true) более правильно чем while(1)
 
         char c = uart_getc();
 
         // Обработка клавиши Enter (\r или \n в зависимости от настроек терминала хоста)
         if (c == '\r' || c == '\n') {
             buffer[index] = '\0'; // Замыкаем строку в буфере
-            kprintf("\n");          // Перенос строки на экране
+            kprintf("\n");        // Перенос строки на экране
 
             execute_command(buffer);
 
