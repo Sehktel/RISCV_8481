@@ -17,6 +17,8 @@ static uintptr_t shell_return_sp = 0;
 
 static void tasks_cleanup(void);
 static trap_frame_t* sched_return_to_shell(trap_frame_t* frame);
+static void user_task(void);
+
 
 
 void sched_set_shell_return_sp(uint64_t sp) {
@@ -310,4 +312,53 @@ static trap_frame_t* sched_return_to_shell(trap_frame_t* frame) {
     write_csr(mepc, (uint64_t)exit_user_mode_return);
     set_return_mode(1); /* MPP=M: mret ведёт в M-mode Shell */
     return frame;
+}
+
+
+
+
+/**
+ * @brief Тестовая задача, исполняемая процессором строго в User Mode (U-mode).
+ */
+static void user_task(void) {
+    const char* msg = "[U-MODE] Привет из непривилегированного пространства! Запрашиваю тики...\n";
+    sys_call(SYS_PRINT, (uint64_t)msg, 0);
+
+    uint64_t ticks = sys_call(SYS_GET_TICKS, 0, 0);
+    if (ticks > 0) {
+        sys_call(SYS_PRINT, (uint64_t) "[U-MODE] Системный вызов SYS_GET_TICKS вернул ненулевое время!\n", 0);
+    }
+
+    sys_call(SYS_PRINT, (uint64_t) "[U-MODE] Вызываю SYS_EXIT(0) для возврата в ядро...\n", 0);
+    sys_call(SYS_EXIT, 0, 0);
+
+    for (;;) {
+    }
+}
+
+
+void run_user_mode_demo(void) {
+    const size_t user_stack_size = 4096;
+    uint8_t* user_stack = (uint8_t*)kmalloc(user_stack_size);
+    if (user_stack == NULL) {
+        kprintf("[ERROR] Не удалось выделить память под стек U-mode\n");
+        return;
+    }
+
+    /* Куда вернуться при любой ловушке из U-mode — как в pmptest. */
+    uint64_t cur_sp;
+    asm volatile("mv %0, sp" : "=r"(cur_sp));
+    sched_set_shell_return_sp(cur_sp - 112);
+    sched_clear_current_task();
+
+    uintptr_t user_sp = (uintptr_t)(user_stack + user_stack_size);
+    kprintf("[KERNEL] Опускаем процессор в U-mode (entry=0x%lx, user_sp=0x%lx)...\n",
+            (uintptr_t)user_task, user_sp);
+    pmp_configure_user((uintptr_t)user_stack, user_sp);
+
+    enter_user_mode((uintptr_t)user_task, user_sp);
+
+    pmp_set_default_user_profile();   /* демо оставляет систему как нашла */
+    kprintf("[KERNEL] Управление успешно возвращено в M-mode Shell!\n");
+    kfree(user_stack);
 }
