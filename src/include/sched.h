@@ -98,6 +98,8 @@ void run_scheduler_demo(void);
 void enter_user_mode(uintptr_t entry, uintptr_t user_sp);
 void exit_user_mode_return(void);
 void run_user_mode_demo(void);
+void run_pmp_violation_demo(void);
+
 uint64_t sys_call(uint64_t sys_num, uint64_t arg0, uint64_t arg1);
 
 void sched_set_shell_return_sp(uint64_t sp);

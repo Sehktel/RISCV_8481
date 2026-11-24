@@ -19,19 +19,20 @@ static void tasks_cleanup(void);
 static trap_frame_t* sched_return_to_shell(trap_frame_t* frame);
 static void user_task(void);
 
+static void rogue_uart_task(void) ;
 
 
 void sched_set_shell_return_sp(uint64_t sp) {
     shell_return_sp = sp;
 }
 
-/* Готовит mstatus к mret в нужный режим: 0 = U-mode (MPP=00), 1 = M-mode (MPP=11). */
-static void set_return_mode(int machine_mode) {
-    uint64_t m = read_csr(mstatus);
-    m &= ~(3ULL << 11); /* стереть MPP */
-    if (machine_mode) m |= (3ULL << 11);
-    write_csr(mstatus, m);
-}
+// /* Готовит mstatus к mret в нужный режим: 0 = U-mode (MPP=00), 1 = M-mode (MPP=11). */
+// static void set_return_mode(int machine_mode) {
+//     uint64_t m = read_csr(mstatus);
+//     m &= ~(3ULL << 11); /* стереть MPP */
+//     if (machine_mode) m |= (3ULL << 11);
+//     write_csr(mstatus, m);
+// }
 
 /* Корректно снимает задачу с исполнения: слот покидает очередь,
  * таймер и планировщик гасятся, управление уходит в M-mode Shell. */
@@ -45,7 +46,7 @@ static void kill_current_task(trap_frame_t* frame) {
     frame->sp = shell_return_sp; /* НЕ frame + sizeof(trap_frame_t) */
     // frame->sp = (uintptr_t)frame + sizeof(trap_frame_t);
     write_csr(mepc, (uint64_t)exit_user_mode_return);
-    set_return_mode(1);
+    csr_set_return_mode(1);
 }
 /**
  * @brief Выбирает следующую готовую задачу по кругу (Round-Robin).
@@ -66,7 +67,7 @@ trap_frame_t* schedule_next(trap_frame_t* current_frame) {
         tasks[next_idx].state = TASK_RUNNING;
 
         write_csr(mepc, tasks[next_idx].mepc);
-        set_return_mode(0); /* mret ведёт в U-задачу — назначено явно */
+        csr_set_return_mode(0); /* mret ведёт в U-задачу — назначено явно */
         return tasks[next_idx].frame;
     }
 
@@ -109,7 +110,7 @@ trap_frame_t* trap_handler(trap_frame_t* frame) {
          * пока CPU был в M-mode (в трапе или в kprintf) — тогда без
          * этого mret продолжит задачу в M-режиме, и её первый ecall
          * даст mcause=11 вместо 8. */
-        set_return_mode(0); /* MPP=U: mret ведёт в U-задачу */
+        csr_set_return_mode(0); /* MPP=U: mret ведёт в U-задачу */
 
         return next;
     }
@@ -310,7 +311,7 @@ static trap_frame_t* sched_return_to_shell(trap_frame_t* frame) {
     current_task_idx = -1;
     frame->sp = shell_return_sp;
     write_csr(mepc, (uint64_t)exit_user_mode_return);
-    set_return_mode(1); /* MPP=M: mret ведёт в M-mode Shell */
+    csr_set_return_mode(1); /* MPP=M: mret ведёт в M-mode Shell */
     return frame;
 }
 
@@ -360,5 +361,53 @@ void run_user_mode_demo(void) {
 
     pmp_set_default_user_profile();   /* демо оставляет систему как нашла */
     kprintf("[KERNEL] Управление успешно возвращено в M-mode Shell!\n");
+    kfree(user_stack);
+}
+
+
+
+/**
+ * @brief Злонамеренная задача U-mode: пытается напрямую писать в UART0 в обход syscall.
+ */
+static void rogue_uart_task(void) {
+    sys_call(SYS_PRINT, (uint64_t) "[U-MODE | ROGUE] Пытаюсь напрямую записать символ в UART0 (0x10000000)...\n", 0);
+    *(volatile uint8_t*)UART0_BASE = 'X'; /* осознанный обход API: должен дать Store Access Fault, mcause=7 */
+    sys_call(SYS_PRINT, (uint64_t) "[U-MODE | ROGUE] ОШИБКА: запись в UART0 прошла без блокировки!\n", 0);
+    sys_call(SYS_EXIT, 0, 0);
+}
+void run_pmp_violation_demo(void) {
+    const size_t user_stack_size = 4096;
+    uint8_t* user_stack = (uint8_t*)kmalloc(user_stack_size);
+    if (user_stack == NULL) {
+        kprintf("[ERROR] Не удалось выделить память под стек U-mode\n");
+        return;
+    }
+
+    /* Запоминаем, куда вернуться при любой ловушке из U-mode (SYS_EXIT,
+     * PMP-фолт и т.д.): kill_current_task и exit_user_mode_return обе
+     * используют shell_return_sp. Фрейм enter_user_mode — 112 байт. */
+    uint64_t cur_sp;
+    asm volatile("mv %0, sp" : "=r"(cur_sp));
+    sched_set_shell_return_sp(cur_sp - 112);
+    // shell_return_sp = cur_sp - 112;
+
+    /* Планировщик тут не при делах: демо вне задач, поэтому снимаем
+     * контекст "текущей задачи", чтобы kill_current_task ничего не убил. */
+    sched_clear_current_task(); // current_task_idx = -1;
+
+    uintptr_t user_sp = (uintptr_t)(user_stack + user_stack_size);
+    pmp_configure_user((uintptr_t)user_stack, user_sp); /* строгий профиль */
+
+    kprintf("[KERNEL] Запускаем задачу-нарушитель U-mode со строгим PMP...\n");
+    enter_user_mode((uintptr_t)rogue_uart_task, user_sp);
+
+    /* Сюда попадаем двумя путями: rogue штатно вернулся через SYS_EXIT
+     * либо был убит по PMP-фолту — оба идут через shell_return_sp. */
+    kprintf("[KERNEL] Ядро устояло, управление возвращено в M-mode Shell!\n");
+
+    /* Восстанавливаем дефолтный профиль защиты: строгий PMP этого демо
+     * не должен влиять на последующие запуски (например, shed). */
+    pmp_set_default_user_profile();
+
     kfree(user_stack);
 }
