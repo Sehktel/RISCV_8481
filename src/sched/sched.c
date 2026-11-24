@@ -1,7 +1,6 @@
 #include "../include/sched.h"
 #include "../include/console.h" /* kprintf */
 #include "../include/csr.h"
-#include "../include/csr.h"  /* если в sched.c есть CSR-обёртки */
 #include "../include/heap.h" /* kmalloc, kfree */
 #include "../include/kernel_layout.h"
 #include "../include/pmp.h"
@@ -10,21 +9,18 @@
 #include "../include/uart.h" /* print */
 
 static task_t tasks[MAX_TASKS];
-// int current_task_idx = -1;
-// int scheduler_active = 0;
-// int timer_ticks_count = 0;
-// uintptr_t shell_return_sp = 0;
 
 static int current_task_idx = -1;
 static int scheduler_active = 0;
 static int timer_ticks_count = 0;
 static uintptr_t shell_return_sp = 0;
 
+static void tasks_cleanup(void);
+static trap_frame_t* sched_return_to_shell(trap_frame_t* frame);
+
+
 void sched_set_shell_return_sp(uint64_t sp) {
     shell_return_sp = sp;
-}
-uint64_t sched_get_shell_return_sp(void) {
-    return shell_return_sp;
 }
 
 /* Готовит mstatus к mret в нужный режим: 0 = U-mode (MPP=00), 1 = M-mode (MPP=11). */
@@ -67,42 +63,14 @@ trap_frame_t* schedule_next(trap_frame_t* current_frame) {
         current_task_idx = next_idx;
         tasks[next_idx].state = TASK_RUNNING;
 
-        /* Профиль защиты — только для выбранной задачи */
-        // pmp_configure_user((uintptr_t)tasks[next_idx].ustack, (uintptr_t)(tasks[next_idx].ustack + 4096));
-
         write_csr(mepc, tasks[next_idx].mepc);
         set_return_mode(0); /* mret ведёт в U-задачу — назначено явно */
         return tasks[next_idx].frame;
     }
 
     /* Готовых задач нет — корректно сворачиваем демонстрацию */
-    timer_enable(false);
-    scheduler_active = 0;
-    current_task_idx = -1;
-    current_frame->sp = shell_return_sp;
-    write_csr(mepc, (uint64_t)exit_user_mode_return);
-    set_return_mode(1);
-    return current_frame;
+    return sched_return_to_shell(current_frame);
 }
-// trap_frame_t* schedule_next(trap_frame_t* current_frame) {
-//     if (current_task_idx >= 0 && tasks[current_task_idx].state == TASK_RUNNING) {
-//         tasks[current_task_idx].mepc = read_csr(mepc);
-//         tasks[current_task_idx].frame = current_frame;
-//         tasks[current_task_idx].state = TASK_READY;
-//     }
-
-//     for (int offset = 1; offset <= MAX_TASKS; offset++) {
-//         int next_idx = (current_task_idx + offset) % MAX_TASKS;
-//         pmp_configure_user((uintptr_t)tasks[next_idx].ustack, (uintptr_t)(tasks[next_idx].ustack + 4096));
-//         if (tasks[next_idx].state == TASK_READY) {
-//             current_task_idx = next_idx;
-//             tasks[next_idx].state = TASK_RUNNING;
-//             write_csr(mepc, tasks[next_idx].mepc);
-//             return tasks[next_idx].frame;
-//         }
-//     }
-//     return current_frame;
-// }
 
 trap_frame_t* trap_handler(trap_frame_t* frame) {
     uint64_t mcause = read_csr(mcause);
@@ -126,22 +94,11 @@ trap_frame_t* trap_handler(trap_frame_t* frame) {
         }
 
         timer_ticks_count++;
-        kprintf("[TIMER IRQ #%d] ...\n");
-
-        // timer_set_next(SCHED_QUANTUM_TICKS);
-
-        // if (scheduler_active) {
-        //     timer_ticks_count++;
-        //     kprintf("[TIMER IRQ #%d] Переключение контекста (Round-Robin)...\n", timer_ticks_count);
+        kprintf("[TIMER IRQ #%d] Переключение контекста (Round-Robin)...\n", timer_ticks_count);
 
         // После 6 квантов (600 мс) завершаем демонстрацию и возвращаемся в Shell
         if (timer_ticks_count >= 6) {
-            timer_enable(false);
-            scheduler_active = 0;
-            frame->sp = shell_return_sp;
-            write_csr(mepc, (uint64_t)exit_user_mode_return);
-            set_return_mode(1); /* MPP=M: mret ведёт в M-mode Shell */
-            return frame;
+            return sched_return_to_shell(frame);
         }
 
         trap_frame_t* next = schedule_next(frame);
@@ -153,8 +110,6 @@ trap_frame_t* trap_handler(trap_frame_t* frame) {
         set_return_mode(0); /* MPP=U: mret ведёт в U-задачу */
 
         return next;
-        // }
-        // return frame;
     }
 
     if ((mcause >> 63) != 0) {
@@ -185,16 +140,6 @@ trap_frame_t* trap_handler(trap_frame_t* frame) {
             kill_current_task(frame);
             return frame;
         }
-        // case SYS_EXIT: {
-        //     uint64_t exit_code = frame->a0;
-        //     kprintf("[KERNEL] Процесс U-mode завершился через SYS_EXIT (код: %lu)\n", exit_code);
-        //     frame->sp = (uintptr_t)frame + sizeof(trap_frame_t);
-        //     write_csr(mepc, (uint64_t)exit_user_mode_return);
-        //     uint64_t mstatus = read_csr(mstatus);
-        //     mstatus |= MSTATUS_MPP_MASK;
-        //     write_csr(mstatus, mstatus);
-        //     return frame;
-        // }
         default:
             kprintf("[SECURITY] Неизвестный syscall %lu из U-mode (mepc=0x%lx)\n", sys_num, mepc);
             frame->a0 = (uint64_t)-1;
@@ -217,16 +162,9 @@ trap_frame_t* trap_handler(trap_frame_t* frame) {
         kprintf("[SECURITY] mcause=%lu | mepc=0x%lx | mtval=0x%lx — процесс принудительно завершён!\n", mcause, mepc,
                 mtval);
 
-        // Аварийно завершаем нарушивший U-mode процесс и возвращаемся в M-mode Shell
+        /* Аварийно завершаем нарушивший U-mode процесс и возвращаемся в M-mode Shell */
         kill_current_task(frame);
         return frame;
-        // frame->a0 = (uint64_t)-1;
-        // frame->sp = (uintptr_t)frame + sizeof(trap_frame_t);
-        // write_csr(mepc, (uint64_t)exit_user_mode_return);
-        // uint64_t mstatus = read_csr(mstatus);
-        // mstatus |= MSTATUS_MPP_MASK;
-        // write_csr(mstatus, mstatus);
-        // return frame;
     }
 
     kprintf("\n[PANIC] Необработанное исключение: mcause=%lu, mepc=0x%lx, mtval=0x%lx\n", mcause, mepc, mtval);
@@ -275,6 +213,19 @@ static void worker_task_b(void) {
     }
 }
 
+
+static void tasks_cleanup(void) {
+    for (int i = 0; i < MAX_TASKS; i++) {
+        kfree(tasks[i].kstack);
+        kfree(tasks[i].ustack);
+        tasks[i].kstack = NULL;
+        tasks[i].ustack = NULL;
+        tasks[i].frame  = NULL;
+        tasks[i].state  = TASK_UNUSED;
+        tasks[i].mepc   = 0;
+    }
+}
+
 void run_scheduler_demo(void) {
     for (int i = 0; i < MAX_TASKS; i++) {
         tasks[i].state = TASK_UNUSED;
@@ -282,44 +233,24 @@ void run_scheduler_demo(void) {
         tasks[i].ustack = NULL;
         tasks[i].frame = NULL;
     }
-    //    for (int i = 0; i < MAX_TASKS; i++) tasks[i].state = TASK_UNUSED;
     current_task_idx = -1;
     timer_ticks_count = 0;
     pmp_set_default_user_profile();
 
     if (!task_create(0, worker_task_a) || !task_create(1, worker_task_b)) {
         kprintf("[ERROR] Не удалось выделить память под задачи планировщика\n");
-        for (int i = 0; i < MAX_TASKS; i++) {
-            kfree(tasks[i].kstack);
-            kfree(tasks[i].ustack);
-            tasks[i].kstack = NULL;
-            tasks[i].ustack = NULL;
-            tasks[i].frame = NULL;
-        }
+        tasks_cleanup();
         return;
     }
 
-    // Этап 10: сужаем границы
-    // pmp_configure_user((uintptr_t)tasks[0].ustack, tasks[0].frame->sp);
-
-    // write_csr(pmpaddr0, (~0ULL) >> 10);
-    // write_csr(pmpcfg0, 0x0FULL);
-
     current_task_idx = 0;
     tasks[0].state = TASK_RUNNING;
-    timer_ticks_count = 0;
     scheduler_active = 1;
 
-    // Запоминаем вершину стека ядра для возврата в Shell после завершения демо
-    // uint64_t cur_sp;
-    // asm volatile("mv %0, sp" : "=r"(cur_sp));
-    // shell_return_sp = cur_sp - 112; // Учитываем фрейм enter_user_mode
+    /* Запоминаем вершину стека ядра для возврата в Shell после завершения демо */
     uint64_t cur_sp;
     asm volatile("mv %0, sp" : "=r"(cur_sp));
     shell_return_sp = cur_sp - 112; /* фрейм enter_user_mode */
-
-    // pmp_configure_user(...);          /* строгий профиль */
-    // enter_user_mode((uintptr_t)rogue_uart_task, user_sp);
 
     kprintf("[SCHED] Запуск вытесняющего планировщика Round-Robin (2 потока U-mode, квант 100 мс)...\n");
     timer_enable(true);
@@ -327,10 +258,7 @@ void run_scheduler_demo(void) {
     enter_user_mode(tasks[0].mepc, tasks[0].frame->sp);
 
     kprintf("[SCHED] Демонстрация планировщика завершена. Освобождаем память задач...\n");
-    for (int i = 0; i < 2; i++) {
-        kfree(tasks[i].kstack);
-        kfree(tasks[i].ustack);
-    }
+    tasks_cleanup();
 }
 
 /**
@@ -346,7 +274,7 @@ bool task_create(int slot, void (*entry)(void)) {
         return false;
     }
 
-    // Размещаем начальный 256-байтный контекст на вершине стека ядра задачи
+    /*  Размещаем начальный 256-байтный контекст на вершине стека ядра задачи */
     trap_frame_t* frame = (trap_frame_t*)(kstack + stack_size - sizeof(trap_frame_t));
     uint8_t* raw = (uint8_t*)frame;
     for (size_t i = 0; i < sizeof(trap_frame_t); i++) {
@@ -368,4 +296,18 @@ bool task_create(int slot, void (*entry)(void)) {
  * Используется демо, которые входят в U-mode вне задач планировщика. */
 void sched_clear_current_task(void) {
     current_task_idx = -1;
+}
+
+
+/* Завершает демо: направляет возврат из ловушки в точку выхода в M-mode
+ * Shell (exit_user_mode_return), гасит таймер и планировщик. Вызывается,
+ * когда демо исчерпано — но ни одна задача при этом не «убивается». */
+static trap_frame_t* sched_return_to_shell(trap_frame_t* frame) {
+    timer_enable(false);
+    scheduler_active = 0;
+    current_task_idx = -1;
+    frame->sp = shell_return_sp;
+    write_csr(mepc, (uint64_t)exit_user_mode_return);
+    set_return_mode(1); /* MPP=M: mret ведёт в M-mode Shell */
+    return frame;
 }

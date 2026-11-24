@@ -27,9 +27,6 @@
 #define SYS_GET_TICKS 2ULL
 #define SYS_EXIT 93ULL
 
-// // Квант времени планировщика: 100 мс при частоте таймера 10 МГц (1 000 000 тиков)
-// #define SCHED_QUANTUM_TICKS (TIMER_FREQ / 10)
-
 // Код прерывания машинного таймера (старший бит 63 = 1, код = 7)
 #define MCAUSE_TIMER_INTERRUPT ((1ULL << 63) | 7ULL)
 
@@ -44,16 +41,6 @@
 // typedef enum { TASK_READY, TASK_RUNNING, TASK_DONE } task_state_t;
 
 typedef enum { TASK_UNUSED = 0, TASK_READY = 1, TASK_RUNNING = 2, TASK_EXITED = 3 } task_state_t;
-
-/* Контракт со start.S (trap_vector): ровно 256 байт — mscratch-арифметика */
-// typedef struct {
-//     uint64_t ra, sp, gp, tp;
-//     uint64_t t0, t1, t2;
-//     uint64_t s0, s1;
-//     uint64_t a0, a1, a2, a3, a4, a5, a6, a7;
-//     uint64_t s2, s3, s4, s5, s6, s7, s8, s9, s10, s11;
-//     uint64_t t3, t4, t5, t6;
-// } trap_frame_t;
 
 // Структура сохранённого контекста (должна строго соответствовать смещениям в trap_vector)
 typedef struct {
@@ -93,8 +80,6 @@ typedef struct {
 
 _Static_assert(sizeof(trap_frame_t) == 256, "trap_frame_t must match 256-byte assembly frame in start.S");
 
-// _Static_assert(sizeof(trap_frame_t) == 256, "trap_frame_t must match 256-byte assembly frame");
-
 typedef struct {
     int id;
     task_state_t state;
@@ -104,8 +89,6 @@ typedef struct {
     trap_frame_t* frame; // Указатель на контекст 32 регистров в kstack
 } task_t;
 
-// static trap_frame_t* schedule_next(trap_frame_t* current_frame);
-// static bool task_create(int slot, void (*entry)(void));
 trap_frame_t* schedule_next(trap_frame_t* current_frame);
 bool task_create(int slot, void (*entry)(void));
 
@@ -117,19 +100,7 @@ void exit_user_mode_return(void);
 void run_user_mode_demo(void);
 uint64_t sys_call(uint64_t sys_num, uint64_t arg0, uint64_t arg1);
 
-// extern uintptr_t shell_return_sp;
-// extern int current_task_idx;
-// extern int scheduler_active;
-// extern int timer_ticks_count;
-
 void sched_set_shell_return_sp(uint64_t sp);
-uint64_t sched_get_shell_return_sp(void);
-
 void sched_clear_current_task(void);
-
-// void schedule_next(void);
-// int  task_create(void (*entry)(void));
-// void trap_handler(uint64_t mcause, uint64_t mepc, uint64_t mtval, trap_frame_t* f);
-// void enter_user_mode(void (*entry)(void));
 
 #endif /* SCHED_H */
