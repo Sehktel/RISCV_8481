@@ -9,7 +9,7 @@ _start:
     bnez a0, park               # Если это не ядро 0, отправляем в бесконечный цикл
 
     # 2. Настраиваем указатель стека (SP) и сохраняем вершину стека ядра в mscratch
-    la sp, _stack_top
+    la sp, kernel_stack_top
     csrw mscratch, sp
 
     # 3. Регистрируем обработчик ловушек в mtvec (режим Direct, младшие 2 бита = 0)

@@ -16,7 +16,7 @@ PHDRS
 SECTIONS
 {
   . = ORIGIN(ram);
-  _text_start = .;
+  kernel_text_start = .;
 
   .text : {
     *(.text.init)
@@ -28,7 +28,7 @@ SECTIONS
   .rodata : {
     *(.rodata .rodata.*)
     . = ALIGN(4);
-    _text_end = .;
+    kernel_text_end = .;
   } > ram :text
 
   .data : {
@@ -37,24 +37,24 @@ SECTIONS
 
   .bss (NOLOAD) : {
     . = ALIGN(8);
-    _bss_start = .;
+    kernel_bss_start = .;
     *(.bss .bss.*)
     *(COMMON)
     . = ALIGN(8);
-    _bss_end = .;
+    kernel_bss_end = .;
   } > ram :data
 
   /* Стек — отдельная NOLOAD-секция, а не зазор в счётчике адресов */
   .stack (NOLOAD) : ALIGN(16) {
-    _stack_bottom = .;
+    kernel_stack_bottom = .;
     . += 0x1000;          /* 4 КБ под стек */
-    _stack_top = .;
+    kernel_stack_top = .;
   } > ram :data
 
   /* Куча: от вершины стека до конца RAM */
   .heap (NOLOAD) : ALIGN(16) {
-    _heap_start = .;
-    _heap_end = ORIGIN(ram) + LENGTH(ram) - 0x200000; /* оставляем 2 МБ запаса */
-    _ram_end = ORIGIN(ram) + LENGTH(ram);
+    kernel_heap_start = .;
+    kernel_heap_end = ORIGIN(ram) + LENGTH(ram) - 0x200000; /* оставляем 2 МБ запаса */
+    kernel_ram_end = ORIGIN(ram) + LENGTH(ram);
   } > ram :data
 }

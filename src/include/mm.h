@@ -13,8 +13,8 @@
 #define HEAP_UAF_CHECK_BYTES 16
 
 // NOLINTBEGIN(bugprone-reserved-identifier)
-extern char _heap_start[];
-extern char _heap_end[];
+extern char kernel_heap_start[];
+extern char kernel_heap_end[];
 // NOLINTEND(bugprone-reserved-identifier)
 
 typedef struct block_header {

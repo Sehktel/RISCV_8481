@@ -11,8 +11,8 @@ static uintptr_t heap_bounds_end = 0;
 /**
  * @brief Инициализирует кучу: создаёт один большой свободный блок.
  *
- * Берёт границы кучи из символов компоновщика @c _heap_start и
- * @c _heap_end, выравнивает их по 16 байт и превращает всю область
+ * Берёт границы кучи из символов компоновщика @c kernel_heap_start и
+ * @c kernel_heap_end, выравнивает их по 16 байт и превращает всю область
  * в единственный свободный блок.
  *
  * @warning Функцию нужно вызвать один раз до любого kmalloc/kfree.
@@ -21,8 +21,8 @@ static uintptr_t heap_bounds_end = 0;
  *          и kmalloc будет возвращать NULL.
  */
 void heap_init(void) {
-    heap_bounds_start = ALIGN16((uintptr_t)_heap_start);
-    heap_bounds_end = (uintptr_t)_heap_end & ~((uintptr_t)15);
+    heap_bounds_start = ALIGN16((uintptr_t)kernel_heap_start);
+    heap_bounds_end = (uintptr_t)kernel_heap_end & ~((uintptr_t)15);
 
     if (heap_bounds_end <= heap_bounds_start + sizeof(block_header_t)) {
         heap_head = NULL;
