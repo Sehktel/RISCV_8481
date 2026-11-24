@@ -8,7 +8,6 @@
  * без стандартной библиотеки.
  */
 
-// #include "./main.h"
 #include "./include/console.h"
 #include "./include/csr.h"
 #include "./include/heap.h"
