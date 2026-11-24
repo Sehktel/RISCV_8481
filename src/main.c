@@ -15,10 +15,10 @@
 #include "./include/mm.h"
 #include "./include/pmp.h"
 #include "./include/sched.h"
+#include "./include/shell.h"
 #include "./include/string.h"
 #include "./include/timer.h"
 #include "./include/uart.h"
-#include "./include/shell.h"
 
 #include <stdarg.h>
 

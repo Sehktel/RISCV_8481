@@ -19,8 +19,7 @@ static void tasks_cleanup(void);
 static trap_frame_t* sched_return_to_shell(trap_frame_t* frame);
 static void user_task(void);
 
-static void rogue_uart_task(void) ;
-
+static void rogue_uart_task(void);
 
 void sched_set_shell_return_sp(uint64_t sp) {
     shell_return_sp = sp;
@@ -216,16 +215,15 @@ static void worker_task_b(void) {
     }
 }
 
-
 static void tasks_cleanup(void) {
     for (int i = 0; i < MAX_TASKS; i++) {
         kfree(tasks[i].kstack);
         kfree(tasks[i].ustack);
         tasks[i].kstack = NULL;
         tasks[i].ustack = NULL;
-        tasks[i].frame  = NULL;
-        tasks[i].state  = TASK_UNUSED;
-        tasks[i].mepc   = 0;
+        tasks[i].frame = NULL;
+        tasks[i].state = TASK_UNUSED;
+        tasks[i].mepc = 0;
     }
 }
 
@@ -301,7 +299,6 @@ void sched_clear_current_task(void) {
     current_task_idx = -1;
 }
 
-
 /* Завершает демо: направляет возврат из ловушки в точку выхода в M-mode
  * Shell (exit_user_mode_return), гасит таймер и планировщик. Вызывается,
  * когда демо исчерпано — но ни одна задача при этом не «убивается». */
@@ -314,9 +311,6 @@ static trap_frame_t* sched_return_to_shell(trap_frame_t* frame) {
     csr_set_return_mode(1); /* MPP=M: mret ведёт в M-mode Shell */
     return frame;
 }
-
-
-
 
 /**
  * @brief Тестовая задача, исполняемая процессором строго в User Mode (U-mode).
@@ -337,7 +331,6 @@ static void user_task(void) {
     }
 }
 
-
 void run_user_mode_demo(void) {
     const size_t user_stack_size = 4096;
     uint8_t* user_stack = (uint8_t*)kmalloc(user_stack_size);
@@ -353,18 +346,15 @@ void run_user_mode_demo(void) {
     sched_clear_current_task();
 
     uintptr_t user_sp = (uintptr_t)(user_stack + user_stack_size);
-    kprintf("[KERNEL] Опускаем процессор в U-mode (entry=0x%lx, user_sp=0x%lx)...\n",
-            (uintptr_t)user_task, user_sp);
+    kprintf("[KERNEL] Опускаем процессор в U-mode (entry=0x%lx, user_sp=0x%lx)...\n", (uintptr_t)user_task, user_sp);
     pmp_configure_user((uintptr_t)user_stack, user_sp);
 
     enter_user_mode((uintptr_t)user_task, user_sp);
 
-    pmp_set_default_user_profile();   /* демо оставляет систему как нашла */
+    pmp_set_default_user_profile(); /* демо оставляет систему как нашла */
     kprintf("[KERNEL] Управление успешно возвращено в M-mode Shell!\n");
     kfree(user_stack);
 }
-
-
 
 /**
  * @brief Злонамеренная задача U-mode: пытается напрямую писать в UART0 в обход syscall.

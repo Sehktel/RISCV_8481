@@ -4,7 +4,6 @@
 #define MSTATUS_MIE (1ULL << 3) // Глобальное разрешение прерываний в Machine-mode
 #define MIE_MTIE (1ULL << 7)    // Разрешение прерываний от машинного таймера
 
-
 /* Готовит mstatus к mret в нужный режим: 0 = U-mode (MPP=00), 1 = M-mode (MPP=11). */
 void csr_set_return_mode(int machine_mode) {
     uint64_t m = read_csr(mstatus);

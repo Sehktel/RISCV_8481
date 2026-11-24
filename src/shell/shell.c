@@ -9,7 +9,6 @@
 #include "./include/timer.h"
 #include "./include/uart.h"
 
-
 /**
  * @brief Вычисляет и выводит время работы ядра в формате MM:SS.mmm.
  *
