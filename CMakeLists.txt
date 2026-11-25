@@ -44,10 +44,11 @@ target_link_libraries(kernel.elf PRIVATE
     mm
     arch)
 
-# Сырой бинарник для QEMU (-bios none -kernel)
+# Сырой бинарник для QEMU (-bios none -kernel) и ELF для GDB — оба в bin/
 find_program(OBJCOPY riscv64-unknown-elf-objcopy REQUIRED)
 add_custom_command(TARGET kernel.elf POST_BUILD
     COMMAND ${CMAKE_COMMAND} -E make_directory ${CMAKE_SOURCE_DIR}/bin
     COMMAND ${OBJCOPY} -O binary $<TARGET_FILE:kernel.elf> ${CMAKE_SOURCE_DIR}/bin/kernel.bin
-    COMMENT "Генерация сырого бинарника: bin/kernel.bin"
+    COMMAND ${CMAKE_COMMAND} -E copy $<TARGET_FILE:kernel.elf> ${CMAKE_SOURCE_DIR}/bin/kernel.elf
+    COMMENT "Генерация артефактов: bin/kernel.bin и bin/kernel.elf"
     VERBATIM)
