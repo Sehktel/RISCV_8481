@@ -1,6 +1,9 @@
-#include "../include/console.h"
-#include "../include/types.h"
-#include "../include/uart.h"
+#include "console.h"
+#include "types.h"
+#include "uart.h"
+// #include "../include/console.h"
+// #include "../include/types.h"
+// #include "../include/uart.h"
 #include <stdarg.h>
 
 /**

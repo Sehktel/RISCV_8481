@@ -68,5 +68,7 @@ tree.txt
 .infrastructure/kubeconfig.yaml
 
 docs/generated/
-
+CMakeCache.txt
+CMakeFiles/
+cmake_install.cmake
 .env

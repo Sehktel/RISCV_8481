@@ -27,6 +27,10 @@ DOCKER_RUN = $(DOCKER_BIN) run --rm \
 	-w /workspace \
 	riscv_os_devsecops:latest
 endif
+
+SOURCES := $(shell find src -name '*.c' -not -path '*/.*')
+HEADERS := $(shell find src -name '*.h' -not -path '*/.*')
+
 GITLEAKS_CONFIG = --source . --config .gitleaks.toml
 GITLEAKS_ARGS = --source . --config .gitleaks.toml --platform gitea --verbose --redact
 
@@ -55,7 +59,11 @@ build:
 
 ## Проверка стиля кода (clang-format, только проверка)
 style:
-	$(DOCKER_RUN) sh -c "find src/ $ -name '*.c' -o -name '*.h' $ | xargs clang-format --dry-run --Werror"
+	$(DOCKER_RUN) sh -c "clang-format --dry-run --Werror $(SOURCES) $(HEADERS)"
+
+## Автоматическое форматирование кода (clang-format)
+format:
+	$(DOCKER_RUN) sh -c "clang-format -i $(SOURCES) $(HEADERS)"
 
 ## Статический анализ кода (cppcheck)
 sast:
@@ -67,21 +75,20 @@ sast:
 	         --suppress=unusedFunction \
 	         --inline-suppr \
 	         src/
+
 ## Глубокий статический анализ кода (clang-tidy: bugprone-*, cert-*)
 tidy:
-	$(DOCKER_RUN) sh -c "clang-tidy src/*.c \
+	$(DOCKER_RUN) sh -c "clang-tidy $(SOURCES) \
 	         --warnings-as-errors='*' \
+	         -header-filter='^/workspace/src/' \
 	         -- \
 	         --target=riscv64-unknown-elf \
 	         -march=rv64gc \
 	         -mabi=lp64d \
 	         -ffreestanding \
 	         -nostdlib \
-	         -Isrc"
-
-## Автоматическое форматирование кода (clang-format)
-format:
-	$(DOCKER_RUN) sh -c "find src/ $ -name '*.c' -o -name '*.h' $ | xargs clang-format -i"
+	         -Isrc \
+	         -Isrc/include"
 
 ## Очистка артефактов сборки
 clean:

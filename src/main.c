@@ -1,24 +1,14 @@
-
-/**
- * @file kernel.c
- * @brief Минимальное микроядро RISC-V (RV64GC) для QEMU virt с интерактивным shell.
- *
- * Реализует UART-ввод/вывод, форматированный вывод (kprintf), чтение
- * аппаратного таймера и обработку команд пользователя. Сборка — bare-metal,
- * без стандартной библиотеки.
- */
-
-#include "./include/console.h"
-#include "./include/csr.h"
-#include "./include/heap.h"
-#include "./include/kernel_layout.h"
-#include "./include/mm.h"
-#include "./include/pmp.h"
-#include "./include/sched.h"
-#include "./include/shell.h"
-#include "./include/string.h"
-#include "./include/timer.h"
-#include "./include/uart.h"
+#include "console.h"
+#include "csr.h"
+#include "heap.h"
+#include "kernel_layout.h"
+#include "mm.h"
+#include "pmp.h"
+#include "sched.h"
+#include "shell.h"
+#include "string.h"
+#include "timer.h"
+#include "uart.h"
 
 #include <stdarg.h>
 

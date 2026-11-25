@@ -1,30 +1,52 @@
 cmake_minimum_required(VERSION 3.16)
 
-set(CMAKE_TOOLCHAIN_FILE "${CMAKE_CURRENT_SOURCE_DIR}/cmake/riscv64-toolchain.cmake" CACHE FILEPATH "")
-set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
+# Кросс-компиляция: не пытаемся линковать ABI-тест хостовым компилятором
+set(CMAKE_TRY_COMPILE_TARGET_TYPE STATIC_LIBRARY)
 
-project(RISCV LANGUAGES C ASM)
+project(riscv_kernel
+    VERSION 0.11.0
+    DESCRIPTION "RISC-V educational microkernel"
+    LANGUAGES C ASM)
 
-set(LINKER_SCRIPT "${CMAKE_CURRENT_SOURCE_DIR}/src/linker.ld")
-set(OUTPUT_BIN_DIR "${CMAKE_CURRENT_SOURCE_DIR}/bin")
-set(CMAKE_RUNTIME_OUTPUT_DIRECTORY "${OUTPUT_BIN_DIR}")
+set(CMAKE_C_STANDARD 11)
+set(CMAKE_C_STANDARD_REQUIRED ON)
 
-file(GLOB_RECURSE SOURCES CONFIGURE_DEPENDS
-    "src/*.c" "src/*.S" "src/*.s")
+set(ARCH_FLAGS
+    -march=rv64gc
+    -mabi=lp64d
+    -mcmodel=medany
+    -ffreestanding
+    -nostdlib)
 
-if(NOT SOURCES)
-    message(FATAL_ERROR "В папке '${CMAKE_CURRENT_SOURCE_DIR}/src' не найдено файлов для сборки!")
-endif()
+add_compile_options(${ARCH_FLAGS} -O2 -g -Wall -Wextra -Werror)
+add_link_options(${ARCH_FLAGS}
+    -T ${CMAKE_SOURCE_DIR}/src/linker.ld
+    -Wl,-Map=${CMAKE_BINARY_DIR}/kernel.map)
 
-add_executable(kernel.elf ${SOURCES})
+# Общие заголовки — всем модулям
+include_directories(${CMAKE_SOURCE_DIR}/src/include)
 
-target_include_directories(kernel.elf PRIVATE
-    "${CMAKE_CURRENT_SOURCE_DIR}/src/include"
-    "${CMAKE_CURRENT_SOURCE_DIR}/src")
+add_subdirectory(src/arch)
+add_subdirectory(src/drivers)
+add_subdirectory(src/lib)
+add_subdirectory(src/mm)
+add_subdirectory(src/sched)
+add_subdirectory(src/shell)
 
-target_link_options(kernel.elf PRIVATE
-    "-T${LINKER_SCRIPT}" "-nostdlib" "-nostartfiles" "-Wl,--gc-sections")
+add_executable(kernel.elf src/main.c)
 
+# Порядок важен: зависимые раньше зависимостей (классическое правило ld)
+target_link_libraries(kernel.elf PRIVATE
+    shell
+    sched
+    drivers
+    klib
+    mm
+    arch)
+
+# Сырой бинарник для QEMU (-bios none -kernel)
+find_program(OBJCOPY riscv64-unknown-elf-objcopy REQUIRED)
 add_custom_command(TARGET kernel.elf POST_BUILD
-    COMMAND ${CMAKE_OBJCOPY} -O binary "${OUTPUT_BIN_DIR}/kernel.elf" "${OUTPUT_BIN_DIR}/kernel.bin"
-    COMMENT "Генерация сырого бинарника: bin/kernel.bin")
+    COMMAND ${OBJCOPY} -O binary $<TARGET_FILE:kernel.elf> ${CMAKE_SOURCE_DIR}/bin/kernel.bin
+    COMMENT "Генерация сырого бинарника: bin/kernel.bin"
+    VERBATIM)

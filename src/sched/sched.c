@@ -1,13 +1,22 @@
-#include "../include/sched.h"
-#include "../include/console.h" /* kprintf */
-#include "../include/csr.h"
-#include "../include/heap.h" /* kmalloc, kfree */
-#include "../include/kernel_layout.h"
-#include "../include/pmp.h"
-#include "../include/timer.h" /* см. пункт 3 */
-#include "../include/types.h"
-#include "../include/uart.h" /* print */
+#include "sched.h"
+#include "console.h" /* kprintf */
+#include "csr.h"
+#include "heap.h" /* kmalloc, kfree */
+#include "kernel_layout.h"
+#include "pmp.h"
+#include "timer.h" /* см. пункт 3 */
+#include "types.h"
+#include "uart.h" /* print */
 
+// #include "../include/sched.h"
+// #include "../include/console.h" /* kprintf */
+// #include "../include/csr.h"
+// #include "../include/heap.h" /* kmalloc, kfree */
+// #include "../include/kernel_layout.h"
+// #include "../include/pmp.h"
+// #include "../include/timer.h" /* см. пункт 3 */
+// #include "../include/types.h"
+// #include "../include/uart.h" /* print */
 static task_t tasks[MAX_TASKS];
 
 static int current_task_idx = -1;
@@ -24,14 +33,6 @@ static void rogue_uart_task(void);
 void sched_set_shell_return_sp(uint64_t sp) {
     shell_return_sp = sp;
 }
-
-// /* Готовит mstatus к mret в нужный режим: 0 = U-mode (MPP=00), 1 = M-mode (MPP=11). */
-// static void set_return_mode(int machine_mode) {
-//     uint64_t m = read_csr(mstatus);
-//     m &= ~(3ULL << 11); /* стереть MPP */
-//     if (machine_mode) m |= (3ULL << 11);
-//     write_csr(mstatus, m);
-// }
 
 /* Корректно снимает задачу с исполнения: слот покидает очередь,
  * таймер и планировщик гасятся, управление уходит в M-mode Shell. */

@@ -1,7 +1,12 @@
 #ifndef TIMER_H
 #define TIMER_H
 
-#include "../include/types.h"
+#include "types.h"
+
+/// Частота таймера: 10 МГц для QEMU virt, 25 МГц для реального железа
+#define TIMER_FREQ 10000000ULL
+#define SCHED_QUANTUM_MS 100
+#define SCHED_QUANTUM_TICKS (TIMER_FREQ_HZ * SCHED_QUANTUM_MS / 1000)
 
 // Регистры аппаратного таймера CLINT на плате QEMU virt (Hart 0)
 #define CLINT_BASE 0x02000000UL

@@ -1,7 +1,7 @@
 #ifndef MM_H
 #define MM_H
 
-#include "./include/types.h"
+#include "types.h"
 
 // Магические константы для контроля целостности заголовка (64-бит)
 #define HEAP_MAGIC_ALLOC 0xDEADC0DE12345678ULL

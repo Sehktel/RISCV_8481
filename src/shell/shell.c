@@ -1,13 +1,13 @@
-#include "./include/console.h"
-#include "./include/csr.h"
-#include "./include/heap.h"
-#include "./include/kernel_layout.h"
-#include "./include/mm.h"
-#include "./include/pmp.h"
-#include "./include/sched.h"
-#include "./include/string.h"
-#include "./include/timer.h"
-#include "./include/uart.h"
+#include "console.h"
+#include "csr.h"
+#include "heap.h"
+#include "kernel_layout.h"
+#include "mm.h"
+#include "pmp.h"
+#include "sched.h"
+#include "string.h"
+#include "timer.h"
+#include "uart.h"
 
 /**
  * @brief Вычисляет и выводит время работы ядра в формате MM:SS.mmm.
