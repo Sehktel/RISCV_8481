@@ -46,8 +46,8 @@ target_link_libraries(kernel.elf PRIVATE
 
 # Сырой бинарник для QEMU (-bios none -kernel)
 find_program(OBJCOPY riscv64-unknown-elf-objcopy REQUIRED)
-file(MAKE_DIRECTORY "${CMAKE_SOURCE_DIR}/bin")
 add_custom_command(TARGET kernel.elf POST_BUILD
+    COMMAND ${CMAKE_COMMAND} -E make_directory ${CMAKE_SOURCE_DIR}/bin
     COMMAND ${OBJCOPY} -O binary $<TARGET_FILE:kernel.elf> ${CMAKE_SOURCE_DIR}/bin/kernel.bin
     COMMENT "Генерация сырого бинарника: bin/kernel.bin"
     VERBATIM)
