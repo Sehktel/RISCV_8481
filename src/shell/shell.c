@@ -21,7 +21,7 @@ void print_uptime(void) {
     uint64_t ticks = get_ticks();
 
     // Переводим тики в миллисекунды
-    uint64_t total_ms = ticks / (TIMER_FREQ / 1000);
+    uint64_t total_ms = ticks / (TIMER_FREQ_HZ / 1000);
 
     uint64_t ms = total_ms % 1000;
     uint64_t seconds = (total_ms / 1000) % 60;
@@ -75,7 +75,7 @@ void execute_command(const char* cmd) {
         kprintf("  mem          - Показать карту кучи (heap)\n");
         kprintf("  memtest      - Выполнить тест аллокатора памяти\n");
         kprintf("  usermode     - Запустить задачу в User Mode (U-mode + ecall)\n");
-        kprintf("  shed         - Проверка вытесняющей многозадачности\n");
+        kprintf("  sched         - Проверка вытесняющей многозадачности\n");
         kprintf("  pmptest      - Проверка аппаратной защита PMP\n");
         kprintf("  exit, quit   - Завершение работы программы\n");
     } else if (kstrcmp(cmd, "info") == 0) {
@@ -100,7 +100,7 @@ void execute_command(const char* cmd) {
         heap_test();
     } else if (kstrcmp(cmd, "usermode") == 0) {
         run_user_mode_demo();
-    } else if (kstrcmp(cmd, "shed") == 0) {
+    } else if (kstrcmp(cmd, "sched") == 0) {
         run_scheduler_demo();
     } else if (kstrcmp(cmd, "pmptest") == 0) {
         run_pmp_violation_demo();

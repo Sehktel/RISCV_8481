@@ -7,11 +7,6 @@
 // Состояния потока и дескриптор задачи (Task Control Block)
 #define MAX_TASKS 4
 
-// /// Частота таймера: 10 МГц для QEMU virt, 25 МГц для реального железа
-// #define TIMER_FREQ 10000000ULL
-// #define SCHED_QUANTUM_MS 100
-// #define SCHED_QUANTUM_TICKS (TIMER_FREQ_HZ * SCHED_QUANTUM_MS / 1000)
-
 // Константы битов прерываний и привилегий RISC-V
 #define MSTATUS_MIE (1ULL << 3)       // Глобальное разрешение прерываний в Machine-mode
 #define MSTATUS_MPIE (1ULL << 7)      // Предыдущее состояние MIE до входа в ловушку

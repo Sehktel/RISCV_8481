@@ -3,11 +3,6 @@
 #include "mm.h"
 #include "types.h"
 
-// #include "../include/heap.h"
-// #include "../include/console.h"
-// #include "../include/mm.h"
-// #include "../include/types.h"
-
 static block_header_t* heap_head = NULL;
 
 static uintptr_t heap_bounds_start = 0;

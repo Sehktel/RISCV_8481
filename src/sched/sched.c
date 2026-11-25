@@ -8,15 +8,6 @@
 #include "types.h"
 #include "uart.h" /* print */
 
-// #include "../include/sched.h"
-// #include "../include/console.h" /* kprintf */
-// #include "../include/csr.h"
-// #include "../include/heap.h" /* kmalloc, kfree */
-// #include "../include/kernel_layout.h"
-// #include "../include/pmp.h"
-// #include "../include/timer.h" /* см. пункт 3 */
-// #include "../include/types.h"
-// #include "../include/uart.h" /* print */
 static task_t tasks[MAX_TASKS];
 
 static int current_task_idx = -1;
@@ -254,7 +245,8 @@ void run_scheduler_demo(void) {
     asm volatile("mv %0, sp" : "=r"(cur_sp));
     shell_return_sp = cur_sp - 112; /* фрейм enter_user_mode */
 
-    kprintf("[SCHED] Запуск вытесняющего планировщика Round-Robin (2 потока U-mode, квант 100 мс)...\n");
+    kprintf("[SCHED] Запуск вытесняющего планировщика Round-Robin (2 потока U-mode, квант %u мс)...\n",
+            SCHED_QUANTUM_MS);
     timer_enable(true);
 
     enter_user_mode(tasks[0].mepc, tasks[0].frame->sp);
@@ -397,7 +389,7 @@ void run_pmp_violation_demo(void) {
     kprintf("[KERNEL] Ядро устояло, управление возвращено в M-mode Shell!\n");
 
     /* Восстанавливаем дефолтный профиль защиты: строгий PMP этого демо
-     * не должен влиять на последующие запуски (например, shed). */
+     * не должен влиять на последующие запуски (например, sched). */
     pmp_set_default_user_profile();
 
     kfree(user_stack);
