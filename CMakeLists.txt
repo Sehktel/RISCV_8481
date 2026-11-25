@@ -44,6 +44,8 @@ target_link_libraries(kernel.elf PRIVATE
     mm
     arch)
 
+file(MAKE_DIRECTORY "${CMAKE_SOURCE_DIR}/bin")
+
 # Сырой бинарник для QEMU (-bios none -kernel)
 find_program(OBJCOPY riscv64-unknown-elf-objcopy REQUIRED)
 add_custom_command(TARGET kernel.elf POST_BUILD
