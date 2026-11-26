@@ -24,6 +24,9 @@ void heap_init(void) {
     heap_bounds_start = ALIGN16((uintptr_t)kernel_heap_start);
     heap_bounds_end = (uintptr_t)kernel_heap_end & ~((uintptr_t)15);
 
+    kprintf("[HEAP] init: 0x%x..0x%x (%u байт)\n", heap_bounds_start, heap_bounds_end,
+            (unsigned)(heap_bounds_end - heap_bounds_start)); /* временная диагностика */
+
     if (heap_bounds_end <= heap_bounds_start + sizeof(block_header_t)) {
         heap_head = NULL;
         return;

@@ -1,5 +1,5 @@
-#include "../include/csr.h"
-#include "../include/types.h"
+#include "csr.h"
+#include "types.h"
 
 #define MSTATUS_MIE (1ULL << 3) // Глобальное разрешение прерываний в Machine-mode
 #define MIE_MTIE (1ULL << 7)    // Разрешение прерываний от машинного таймера

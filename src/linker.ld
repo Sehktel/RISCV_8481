@@ -44,6 +44,15 @@ SECTIONS
     kernel_bss_end = .;
   } > ram :data
 
+  /* Таблицы страниц Sv39: отдельная секция, чтобы выдавать пользователю
+   ровно её и ничего больше (PMP R — чтение при обходе MMU) */
+  .pgtables (NOLOAD) : ALIGN(4096) {
+      kernel_pgtables_start = .;
+      KEEP(*(.pgtables))
+      . = ALIGN(4096);
+      kernel_pgtables_end = .;
+  } > ram :data
+
   /* Стек — отдельная NOLOAD-секция, а не зазор в счётчике адресов */
   .stack (NOLOAD) : ALIGN(16) {
     kernel_stack_bottom = .;

@@ -16,8 +16,6 @@
 #define set_csr(reg, bit) ({ asm volatile("csrs " #reg ", %0" ::"r"(bit)); })
 #define clear_csr(reg, bit) ({ asm volatile("csrc " #reg ", %0" ::"r"(bit)); })
 
-void enable_interrupts(void);
-
 /* csr.h */
 void csr_enable_interrupts(void);
 void csr_set_return_mode(int machine_mode);

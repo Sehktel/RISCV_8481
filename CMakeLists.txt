@@ -8,8 +8,9 @@ project(riscv_kernel
     DESCRIPTION "RISC-V educational microkernel"
     LANGUAGES C ASM)
 
-set(CMAKE_C_STANDARD 11)
+set(CMAKE_C_STANDARD 17)
 set(CMAKE_C_STANDARD_REQUIRED ON)
+set(CMAKE_C_EXTENSIONS ON)  # gnu17: нужны GNU statement expressions в csr.h
 
 set(ARCH_FLAGS
     -march=rv64gc

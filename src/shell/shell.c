@@ -104,6 +104,11 @@ void execute_command(const char* cmd) {
     } else if (kstrcmp(cmd, "sched") == 0) {
         run_scheduler_demo();
     } else if (kstrcmp(cmd, "pmptest") == 0) {
+
+        // kprintf("[PMP] text: 0x%x..0x%x | heap: 0x%x..0x%x | ustack: 0x%x\n",
+        //         (uintptr_t)kernel_text_start, (uintptr_t)kernel_text_end,
+        //         (uintptr_t)kernel_heap_start, (uintptr_t)kernel_heap_end,
+        //         (uintptr_t)ustack);
         run_pmp_violation_demo();
     } else if (kstrlen(cmd) > 0) {
         kprintf("Ошибка: неизвестная команда '%s'. Введите 'help'\n", cmd);

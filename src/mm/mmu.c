@@ -22,8 +22,8 @@
  * Не из кучи: таблицы живут вечно, а куча отравлена (инвариант 0xA5) и
  * на этапе 2 ещё и станет видимым пользователю PMP-регионом — копаться в
  * метаданных трансляции в ней недопустимо. */
-__attribute__((aligned(4096))) static uint64_t l1_root[512];
-__attribute__((aligned(4096))) static uint64_t l2_user[512];
+__attribute__((section(".pgtables"), aligned(4096))) static uint64_t l1_root[512];
+__attribute__((section(".pgtables"), aligned(4096))) static uint64_t l2_user[512];
 
 /* Физический адрес из значения линкер-символа: у нас identity, адрес == PA */
 static uint64_t pte_megapage(uintptr_t pa, uint64_t flags) {

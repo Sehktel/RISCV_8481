@@ -8,6 +8,87 @@
 #include "types.h"
 #include "uart.h" /* print */
 
+// Состояния потока и дескриптор задачи (Task Control Block)
+#define MAX_TASKS 4
+
+/* ULL -- суффик unsigned long long -- гарантированное 64 битное число */
+
+// Константы битов прерываний и привилегий RISC-V
+#define MSTATUS_MIE (1ULL << 3)       // Глобальное разрешение прерываний в Machine-mode
+#define MSTATUS_MPIE (1ULL << 7)      // Предыдущее состояние MIE до входа в ловушку
+#define MSTATUS_MPP_MASK (3ULL << 11) // Маска режима привилегий (00=U, 01=S, 11=M)
+#define MIE_MTIE (1ULL << 7) // Разрешение прерываний от машинного таймера
+
+// Таблица системных вызовов (ABI RISC-V: номер в a7, аргументы в a0..a2)
+#define SYS_PRINT 1ULL
+#define SYS_GET_TICKS 2ULL
+#define SYS_EXIT 93ULL
+
+// Код прерывания машинного таймера (старший бит 63 = 1, код = 7)
+#define MCAUSE_TIMER_INTERRUPT ((1ULL << 63) | 7ULL)
+
+// Коды исключений (mcause при старшем бите = 0)
+#define CAUSE_INSTRUCTION_ACCESS_FAULT 1ULL
+#define CAUSE_ILLEGAL_INSTRUCTION 2ULL
+#define CAUSE_LOAD_ACCESS_FAULT 5ULL
+#define CAUSE_STORE_ACCESS_FAULT 7ULL
+#define CAUSE_ECALL_FROM_UMODE 8ULL
+#define CAUSE_ECALL_FROM_MMODE 11ULL
+
+#define CAUSE_INSTRUCTION_PAGE_FAULT 12ULL /* Fetch: VA нет в таблицах */
+#define CAUSE_LOAD_PAGE_FAULT 13ULL        /* Load: VA нет в таблицах */
+#define CAUSE_STORE_PAGE_FAULT 15ULL       /* Store/AMO: VA нет в таблицах */
+
+typedef enum { TASK_UNUSED = 0, TASK_READY = 1, TASK_RUNNING = 2, TASK_EXITED = 3 } task_state_t;
+
+// Структура сохранённого контекста (должна строго соответствовать смещениям в trap_vector)
+typedef struct {
+    uint64_t ra;
+    uint64_t gp;
+    uint64_t tp;
+    uint64_t t0;
+    uint64_t t1;
+    uint64_t t2;
+    uint64_t s0;
+    uint64_t s1;
+    uint64_t a0;
+    uint64_t a1;
+    uint64_t a2;
+    uint64_t a3;
+    uint64_t a4;
+    uint64_t a5;
+    uint64_t a6;
+    uint64_t a7;
+    uint64_t s2;
+    uint64_t s3;
+    uint64_t s4;
+    uint64_t s5;
+    uint64_t s6;
+    uint64_t s7;
+    uint64_t s8;
+    uint64_t s9;
+    uint64_t s10;
+    uint64_t s11;
+    uint64_t t3;
+    uint64_t t4;
+    uint64_t t5;
+    uint64_t t6;
+    uint64_t sp;
+    uint64_t padding;
+} trap_frame_t;
+
+extern trap_frame_t* schedule_next(trap_frame_t* current_frame);
+extern trap_frame_t* trap_handler(trap_frame_t* frame);
+
+typedef struct {
+    int id;
+    task_state_t state;
+    uint64_t mepc;   // Сохранённый счётчик команд потока
+    uint8_t* kstack; // Выделенный в куче стек ядра (на вершине лежит trap_frame_t)
+    uint8_t* ustack; // Выделенный в куче стек пользователя
+    trap_frame_t* frame; // Указатель на контекст 32 регистров в kstack
+} task_t;
+
 static task_t tasks[MAX_TASKS];
 
 static int current_task_idx = -1;
@@ -143,6 +224,8 @@ trap_frame_t* trap_handler(trap_frame_t* frame) {
         write_csr(mepc, mepc + 4);
         return frame;
     }
+
+    // 2. Физический барьер: PMP Access Faults
     if (mcause == CAUSE_INSTRUCTION_ACCESS_FAULT || mcause == CAUSE_LOAD_ACCESS_FAULT ||
         mcause == CAUSE_STORE_ACCESS_FAULT) {
         const char* fault_type = "Instruction Access Fault (NX / Exec запрещён)";
@@ -156,7 +239,27 @@ trap_frame_t* trap_handler(trap_frame_t* frame) {
         kprintf("[SECURITY] mcause=%lu | mepc=0x%lx | mtval=0x%lx — процесс принудительно завершён!\n", mcause, mepc,
                 mtval);
 
-        /* Аварийно завершаем нарушивший U-mode процесс и возвращаемся в M-mode Shell */
+        kill_current_task(frame);
+        return frame;
+    }
+
+    // 3. Первый рубеж: Sv39 Page Faults (VA не отображён или прав не хватает).
+    //    В Sv39 проверка трансляции стоит ПЕРЕД PMP: если VA нет в таблицах,
+    //    нарушителя ловит MMU, и до физического барьера дело не доходит.
+    if (mcause == CAUSE_INSTRUCTION_PAGE_FAULT || mcause == CAUSE_LOAD_PAGE_FAULT || mcause == CAUSE_STORE_PAGE_FAULT) {
+        const char* fault_type = "Instruction Page Fault";
+        if (mcause == CAUSE_LOAD_PAGE_FAULT) {
+            fault_type = "Load Page Fault";
+        } else if (mcause == CAUSE_STORE_PAGE_FAULT) {
+            fault_type = "Store/AMO Page Fault";
+        }
+
+        kprintf("\n[SECURITY] MMU Violation! %s (VA не отображён в Sv39 или прав не хватает)\n", fault_type);
+        kprintf("[SECURITY] mcause=%lu | mepc=0x%lx | mtval=0x%lx — процесс принудительно завершён!\n", mcause, mepc,
+                mtval);
+
+        /* Тот же путь завершения, что у PMP-нарушения: U-процесс убит,
+         * управление возвращено в M-mode Shell */
         kill_current_task(frame);
         return frame;
     }
@@ -300,7 +403,8 @@ static trap_frame_t* sched_return_to_shell(trap_frame_t* frame) {
     scheduler_active = 0;
     current_task_idx = -1;
     frame->sp = shell_return_sp;
-    write_csr(mepc, (uint64_t)exit_user_mode_return);
+    //    write_csr(mepc, (uint64_t)exit_user_mode_return);
+    write_csr(mepc, (uint64_t)(uintptr_t)exit_user_mode_return);
     csr_set_return_mode(1); /* MPP=M: mret ведёт в M-mode Shell */
     return frame;
 }
@@ -365,6 +469,9 @@ void run_pmp_violation_demo(void) {
         kprintf("[ERROR] Не удалось выделить память под стек U-mode\n");
         return;
     }
+    kprintf("[PMP] text: 0x%x..0x%x | heap: 0x%x..0x%x | ustack: 0x%x\n", (uintptr_t)kernel_text_start,
+            (uintptr_t)kernel_text_end, (uintptr_t)kernel_heap_start, (uintptr_t)kernel_heap_end,
+            (uintptr_t)user_stack);
 
     /* Запоминаем, куда вернуться при любой ловушке из U-mode (SYS_EXIT,
      * PMP-фолт и т.д.): kill_current_task и exit_user_mode_return обе

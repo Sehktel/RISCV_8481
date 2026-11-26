@@ -1,6 +1,6 @@
-#include "../include/timer.h"
-#include "../include/csr.h"
-#include "../include/sched.h"
+#include "timer.h"
+#include "csr.h"
+#include "sched.h"
 
 void timer_set_next(uint64_t ticks) {
     uint64_t next = read_csr(time) + ticks;

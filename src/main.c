@@ -37,8 +37,9 @@ void kmain(void) {
     // Стандартный режим 115200 8N1
     uart_init(115200, UART_DATA_8BITS, UART_PARITY_NONE, UART_STOP_1BIT);
     // Или, например, 9600 7E2 (7 бит, четность Even, 2 стоп-бита)
-    // uart_init(9600, UART_DATA_7BITS, UART_PARITY_EVEN, UART_STOP_2BITS);    heap_init(); // <-- Обязательно до
-    // запуска шелла!
+    // uart_init(9600, UART_DATA_7BITS, UART_PARITY_EVEN, UART_STOP_2BITS);
+
+    heap_init(); // <-- Обязательно до запуска шелла!
 
     mmu_init();
     mmu_enable();

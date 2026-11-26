@@ -16,4 +16,6 @@ void pmp_configure_user(uintptr_t ustack_base, uintptr_t ustack_top);
  * schedule_next) переопределяют его на время своего входа в U-mode. */
 void pmp_set_default_user_profile(void);
 
+void pmp_configure_user_strict(void);
+
 #endif
