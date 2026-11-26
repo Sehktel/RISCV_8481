@@ -30,12 +30,16 @@ jobs:
       - name: Advanced SAST - CERT & Bugprone (Clang-Tidy)
         run: make tidy
 
-
       - name: Cross-Compile Kernel (RV64GC)
         run: |
           make build
           ls -lh bin/kernel.elf bin/kernel.bin
 
+      - name: Headless smoke test (kernel contract)
+        run: make test-smoke
+
+      - name: Headless boot test (MMU validation)
+        run: make test-mmu
 
       # Выгрузка артефакта без actions/upload-artifact (без node-контейнера):
       # Forgejo Generic Packages API, работает на чистом curl.

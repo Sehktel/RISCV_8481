@@ -43,7 +43,8 @@ GITLEAKS_ARGS = --source . --config .gitleaks.toml --platform gitea --verbose --
 		sast        docker-sast \
 		secrets-staged \
 		secrets     docker-secrets \
-		docs        docker-docs
+		docs        docker-docs \
+		test-mmu    test-smoke\
 		run debug gdb
 
 # Базовый конвейер: чистая сборка в контейнере и запуск в QEMU
@@ -90,6 +91,48 @@ tidy:
 	         -Isrc \
 	         -Isrc/include"
 
+## Headless-тест ядра в QEMU: валидация старта Sv39 MMU (для CI)
+test-mmu: build
+	$(DOCKER_RUN) sh -c "timeout -k 2 15 \
+		qemu-system-riscv64 -M virt -bios none -kernel bin/kernel.bin -nographic \
+		> build/qemu-boot.log 2>&1 < /dev/null || true; \
+	if grep -q 'Sv39 инициализирован' build/qemu-boot.log \
+	   && grep -q 'Трансляция включена' build/qemu-boot.log \
+	   && ! grep -q 'PANIC' build/qemu-boot.log; then \
+		echo '[CI] PASS: Sv39 стартовал, трансляция включена, паник нет'; \
+	else \
+		echo '[CI] FAIL: эталонные строки MMU не найдены или ядро запаниковало'; \
+		cat build/qemu-boot.log; \
+		exit 1; \
+	fi"
+## Контрактный smoke-тест: полный прогон ядра с подачей команд в stdin
+test-smoke: build
+	$(DOCKER_RUN) sh -c "grep -q 'ЭТОЙ СТРОКИ В ЛОГЕ НЕТ' build/qemu-smoke.log \
+		&& echo 'BAD: валидатор пропускает что угодно' \
+		|| echo 'OK: отрицательный кейс ловится'"
+
+	$(DOCKER_RUN) sh -c "printf 'info\nmemtest\nusermode\npmptest\nexit\n' \
+		| timeout -k 2 30 \
+		  qemu-system-riscv64 -M virt -bios none -kernel bin/kernel.bin -nographic \
+		  > build/qemu-smoke.log 2>&1; \
+	check() { grep -q \"$$1\" build/qemu-smoke.log || { \
+		echo \"[CI] FAIL: не найдено: $$1\"; cat build/qemu-smoke.log; exit 1; }; }; \
+	check 'Sv39 инициализирован'; \
+	check 'Трансляция включена'; \
+	check 'Всего блоков: 1 | Занято: 0 B'; \
+	check 'Попытка Double-Free на p3'; \
+	check 'kfree: Invalid/corrupted header'; \
+	check 'SYS_GET_TICKS вернул ненулевое время'; \
+	check 'Процесс U-mode завершился через SYS_EXIT (код: 0)'; \
+	check 'SECURITY] MMU Violation! Store/AMO Page Fault'; \
+	check 'mtval=0x10000000'; \
+	check 'Ядро устояло, управление возвращено в M-mode Shell'; \
+	check 'Завершение работы системы'; \
+	if grep -q 'PANIC' build/qemu-smoke.log; then \
+		echo '[CI] FAIL: ядро запаниковало'; cat build/qemu-smoke.log; exit 1; \
+	fi; \
+	echo '[CI] PASS: полный контракт отработал (MMU, heap, usermode, pmptest, exit)'"
+
 ## Очистка артефактов сборки
 clean:
 	$(DOCKER_RUN) sh -c "rm -rf build bin/*"
@@ -106,7 +149,7 @@ docker-sast: sast
 docker-format: format
 docker-clear: clean
 docker-tidy: tidy
-docker-secret: secret
+docker-secrets: secrets
 docker-docs: docs
 
 # ==============================================================================
