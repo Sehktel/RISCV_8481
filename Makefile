@@ -44,7 +44,8 @@ GITLEAKS_ARGS = --source . --config .gitleaks.toml --platform gitea --verbose --
 		secrets-staged \
 		secrets     docker-secrets \
 		docs        docker-docs \
-		test-mmu    test-smoke\
+		test-mmu    test-smoke \
+		ci-verify \
 		run debug gdb
 
 # Базовый конвейер: чистая сборка в контейнере и запуск в QEMU
@@ -92,7 +93,7 @@ tidy:
 	         -Isrc/include"
 
 ## Headless-тест ядра в QEMU: валидация старта Sv39 MMU (для CI)
-test-mmu: build
+test-mmu:
 	$(DOCKER_RUN) sh -c "timeout -k 2 15 \
 		qemu-system-riscv64 -M virt -bios none -kernel bin/kernel.bin -nographic \
 		> build/qemu-boot.log 2>&1 < /dev/null || true; \
@@ -106,7 +107,7 @@ test-mmu: build
 		exit 1; \
 	fi"
 ## Контрактный smoke-тест: полный прогон ядра с подачей команд в stdin
-test-smoke: build
+test-smoke:
 	$(DOCKER_RUN) sh -c "grep -q 'ЭТОЙ СТРОКИ В ЛОГЕ НЕТ' build/qemu-smoke.log \
 		&& echo 'BAD: валидатор пропускает что угодно' \
 		|| echo 'OK: отрицательный кейс ловится'"
@@ -132,6 +133,14 @@ test-smoke: build
 		echo '[CI] FAIL: ядро запаниковало'; cat build/qemu-smoke.log; exit 1; \
 	fi; \
 	echo '[CI] PASS: полный контракт отработал (MMU, heap, usermode, pmptest, exit)'"
+
+# VERBOSE=1           — печатать лог QEMU после прогона
+# VERBOSE=interactive — ручной режим: QEMU с живым stdin, без валидации
+VERBOSE ?= 0
+
+## Контрактный smoke-тест: интерактивный прогон ядра + валидация (для CI)
+ci-verify: build
+	$(DOCKER_RUN) python3 .infrastructure/scripts/smoke_test.py $(VERBOSE)
 
 ## Очистка артефактов сборки
 clean:

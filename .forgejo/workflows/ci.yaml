@@ -36,7 +36,7 @@ jobs:
           ls -lh bin/kernel.elf bin/kernel.bin
 
       - name: Headless smoke test (kernel contract)
-        run: make test-smoke
+        run: make ci-verify
 
       - name: Headless boot test (MMU validation)
         run: make test-mmu
