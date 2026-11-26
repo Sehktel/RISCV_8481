@@ -75,7 +75,7 @@ void execute_command(const char* cmd) {
         kprintf("  mem          - Показать карту кучи (heap)\n");
         kprintf("  memtest      - Выполнить тест аллокатора памяти\n");
         kprintf("  usermode     - Запустить задачу в User Mode (U-mode + ecall)\n");
-        kprintf("  sched         - Проверка вытесняющей многозадачности\n");
+        kprintf("  sched        - Проверка вытесняющей многозадачности\n");
         kprintf("  pmptest      - Проверка аппаратной защита PMP\n");
         kprintf("  exit, quit   - Завершение работы программы\n");
     } else if (kstrcmp(cmd, "info") == 0) {
