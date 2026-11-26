@@ -12,6 +12,34 @@
 #define LSR_THRE 0x20
 #define LSR_DR 0x01
 
+static inline void uart_write_reg(uint8_t reg, uint8_t val) {
+    *(volatile uint8_t*)(UART0_BASE + reg) = val;
+}
+
+void uart_init(uint32_t baudrate, uart_databits_t data_bits, uart_parity_t parity, uart_stopbits_t stop_bits) {
+    // 1. Отключаем прерывания UART
+    uart_write_reg(UART_IER, 0x00);
+
+    // 2. Открываем доступ к делителю частоты (DLAB = 1)
+    uart_write_reg(UART_LCR, LCR_DLAB);
+
+    // 3. Рассчитываем и записываем делитель под переданный baudrate
+    uint16_t divisor = (uint16_t)(UART_CLOCK_HZ / (16 * baudrate));
+    uart_write_reg(UART_DLL, (uint8_t)(divisor & 0xFF));
+    uart_write_reg(UART_DLM, (uint8_t)((divisor >> 8) & 0xFF));
+
+    // 4. Собираем конфигурацию кадра из переданных аргументов и сбрасываем DLAB в 0
+    // Примечание: 1 стартовый бит (Start bit) генерируется контроллером аппаратно всегда.
+    uint8_t lcr_config = (uint8_t)data_bits | (uint8_t)parity | (uint8_t)stop_bits;
+    uart_write_reg(UART_LCR, lcr_config);
+
+    // 5. Включаем и сбрасываем буферы FIFO
+    uart_write_reg(UART_FCR, FCR_FIFO_EN | FCR_RX_RESET | FCR_TX_RESET);
+
+    // 6. Активируем сигналы управления модемом (DTR, RTS)
+    uart_write_reg(UART_MCR, 0x03);
+}
+
 /**
  * @brief Читает один символ из UART методом активного опроса (busy-wait).
  * @return Принятый символ (char).

@@ -1,2 +1,3 @@
 add_library(mm STATIC
-    heap.c)
+    heap.c
+    mmu.c)
