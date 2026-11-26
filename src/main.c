@@ -40,7 +40,6 @@ void kmain(void) {
     // uart_init(9600, UART_DATA_7BITS, UART_PARITY_EVEN, UART_STOP_2BITS);    heap_init(); // <-- Обязательно до
     // запуска шелла!
 
-
     mmu_init();
     mmu_enable();
 
