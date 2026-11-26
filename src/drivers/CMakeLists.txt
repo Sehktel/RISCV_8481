@@ -1,3 +1,4 @@
 add_library(drivers STATIC
     uart.c
-    timer.c)
+    timer.c
+    poweroff.c)

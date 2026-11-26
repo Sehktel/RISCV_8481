@@ -4,6 +4,7 @@
 #include "kernel_layout.h"
 #include "mm.h"
 #include "pmp.h"
+#include "poweroff.h"
 #include "sched.h"
 #include "string.h"
 #include "timer.h"
