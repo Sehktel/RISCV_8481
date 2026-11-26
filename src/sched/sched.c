@@ -5,6 +5,7 @@
 #include "kernel_layout.h"
 #include "pmp.h"
 #include "timer.h" /* см. пункт 3 */
+#include "trap.h"
 #include "types.h"
 #include "uart.h" /* print */
 
@@ -77,8 +78,8 @@ typedef struct {
     uint64_t padding;
 } trap_frame_t;
 
-extern trap_frame_t* schedule_next(trap_frame_t* current_frame);
-extern trap_frame_t* trap_handler(trap_frame_t* frame);
+// extern trap_frame_t* schedule_next(trap_frame_t* current_frame);
+// extern trap_frame_t* trap_handler(trap_frame_t* frame);
 
 typedef struct {
     int id;

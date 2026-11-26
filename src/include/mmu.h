@@ -17,4 +17,25 @@ void mmu_init(void);
  */
 void mmu_enable(void);
 
+
+/**
+ * @brief Создаёт новое адресное пространство: корневая таблица из пула
+ * + identity-мегапейдж ядра БЕЗ бита U (пользователь ядро не видит).
+ * Возвращает указатель на корень или NULL, если пул исчерпан.
+ */
+uint64_t* mmu_create_aspace(void);
+
+/**
+ * @brief Маппит одну страницу 4 КиБ: va -> pa с флагами R|W|X|U|...
+ * Каталоги L2/L3 выделяются из пула по требованию.
+ * Возвращает true при успехе, false при нехватке таблиц или конфликте маппинга.
+ */
+bool mmu_map_page(uint64_t* root, uintptr_t va, uintptr_t pa, uint64_t flags);
+
+/** @brief Собирает значение satp для корневой таблицы (MODE_Sv39 | PPN). */
+uint64_t mmu_satp_of(uint64_t* root);
+
+/** @brief Переключает контекст памяти: запись satp + полный сброс TLB. */
+void mmu_switch(uint64_t satp);
+
 #endif /* MMU_H */
