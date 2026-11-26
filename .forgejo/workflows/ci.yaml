@@ -2,7 +2,7 @@ name: RISC-V Microkernel CI (Stage 7)
 
 on:
   push:
-    branches: [ main, master ]
+    branches: [ main, master, ci/qemu-headless]
   pull_request:
     branches: [ main, master ]
 
