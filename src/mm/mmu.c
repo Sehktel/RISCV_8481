@@ -63,7 +63,6 @@ void mmu_enable(void) {
     kprintf("[MMU] Трансляция включена (satp=0x%x) — действует в S/U-mode\n", (uintptr_t)satp);
 }
 
-
 /* ── Пул таблиц страниц: статический, секция .pgtables ────────────────────
  * Куча отравлена (0xA5) и на этапе 2 станет видима пользователю —
  * метаданным трансляции в ней не место (решение из mmu_init).
@@ -78,7 +77,7 @@ static int pt_pool_used = 0;
 static uint64_t* pt_alloc(void) {
     if (pt_pool_used >= PT_POOL_PAGES) return NULL;
     uint64_t* t = pt_pool[pt_pool_used++];
-    for (int i = 0; i < 512; i++) t[i] = 0;
+    for (int i = 0; i < 512; i++) { t[i] = 0; }
     return t;
 }
 
@@ -94,26 +93,24 @@ uint64_t* mmu_create_aspace(void) {
 }
 
 bool mmu_map_page(uint64_t* root, uintptr_t va, uintptr_t pa, uint64_t flags) {
-    /* Уровень 1: каталог L2.Leaf-мегапейдж на этом индексе — конфликт. */
+    /* Уровень 1: каталог L2. Leaf-мегапейдж на этом индексе — конфликт. */
     uint64_t e = root[(va >> 30) & 0x1FF];
     if ((e & PTE_V) && (e & (PTE_R | PTE_W | PTE_X))) return false;
-    uint64_t* l2;
+    uint64_t* l2 = (uint64_t*)(((uintptr_t)(e >> 10) << PTE_PPN_SHIFT));
     if (!(e & PTE_V)) {
-        if ((l2 = pt_alloc()) == NULL) return false;
+        l2 = pt_alloc();
+        if (l2 == NULL) return false;
         root[(va >> 30) & 0x1FF] = ((((uintptr_t)l2) >> PTE_PPN_SHIFT) << 10) | PTE_V;
-    } else {
-        l2 = (uint64_t*)(((uintptr_t)(e >> 10) << PTE_PPN_SHIFT));
     }
 
     /* Уровень 2: каталог L3. */
     e = l2[(va >> 21) & 0x1FF];
     if ((e & PTE_V) && (e & (PTE_R | PTE_W | PTE_X))) return false;
-    uint64_t* l3;
+    uint64_t* l3 = (uint64_t*)(((uintptr_t)(e >> 10) << PTE_PPN_SHIFT));
     if (!(e & PTE_V)) {
-        if ((l3 = pt_alloc()) == NULL) return false;
+        l3 = pt_alloc();
+        if (l3 == NULL) return false;
         l2[(va >> 21) & 0x1FF] = ((((uintptr_t)l3) >> PTE_PPN_SHIFT) << 10) | PTE_V;
-    } else {
-        l3 = (uint64_t*)(((uintptr_t)(e >> 10) << PTE_PPN_SHIFT));
     }
 
     /* Уровень 3: лист 4 КиБ. A ставим сразу — SADT железо не выставит. */
